@@ -1,4 +1,4 @@
-# Presale Smart contract
+# Pika Staking Smart contract
 
 This project is about Presale smart contract.
 
