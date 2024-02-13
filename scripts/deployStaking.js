@@ -1,12 +1,12 @@
 const hre = require("hardhat");
-const ICOARG = require("../args/Staking");
+const StakingARG = require("../args/Staking");
 async function main() {
   const [owner] = await ethers.getSigners();
 
   const PikaStaking = await ethers.getContractFactory("PikaStaking");
 
   const staking = await PikaStaking.deploy(
-    ICOARG[0],
+    StakingARG[0],
 
   );
   await staking.deployed();

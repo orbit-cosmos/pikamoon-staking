@@ -8,6 +8,6 @@ Try running some of the following tasks:
 
 npx hardhat node
 npm run compile
-REPORT_GAS=true npm run test
+npm run test
 npx hardhat run scripts/deployICO.js
 ```

@@ -2,6 +2,8 @@ require("@nomicfoundation/hardhat-toolbox");
 require("solidity-coverage");
 require("dotenv").config();
 require('solidity-docgen');
+require("hardhat-gas-reporter");
+require("hardhat-contract-sizer");
 module.exports = {
   defaultNetwork: "hardhat",
   networks: {
@@ -52,6 +54,9 @@ module.exports = {
   ],
   sourcify: {
     enabled: true,
+  },
+  gasReporter: {
+    enabled: (process.env.REPORT_GAS) ? true : false
   },
   solidity: {
     compilers: [
