@@ -1,0 +1,5 @@
+module.exports = [
+  "0xC532a74256D3Db42D0Bf7a0400fEFDbad7694008", //uniswap v2 router
+  "0x7169D38820dfd117C3FA1f22a697dBA58d90BA06", //usdt
+  "0x7169D38820dfd117C3FA1f22a697dBA58d90BA06" // token
+];

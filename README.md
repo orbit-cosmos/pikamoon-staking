@@ -1,0 +1,13 @@
+# Presale Smart contract
+
+This project is about Presale smart contract.
+
+Try running some of the following tasks:
+
+```shell
+
+npx hardhat node
+npm run compile
+REPORT_GAS=true npm run test
+npx hardhat run scripts/deployICO.js
+```
