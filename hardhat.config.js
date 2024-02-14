@@ -1,7 +1,7 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("solidity-coverage");
 require("dotenv").config();
-require('solidity-docgen');
+require("solidity-docgen");
 require("hardhat-gas-reporter");
 require("hardhat-contract-sizer");
 module.exports = {
@@ -16,12 +16,18 @@ module.exports = {
       },
       chainId: 31337,
     },
-  // sepolia
-  "sepolia": {
-    accounts: [process.env.PK],
-    chainId: 11155111,
-    url: `https://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`,
-  },
+    // ethereum mainnet
+    mainnet: {
+      url: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`,
+      chainId: 1,
+      accounts: [process.env.PK],
+    },
+    // sepolia
+    sepolia: {
+      accounts: [process.env.PK],
+      chainId: 11155111,
+      url: `https://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`,
+    },
     // ARBITRUM
     "arbitrum-mainnet": {
       accounts: [process.env.PK],
@@ -38,8 +44,10 @@ module.exports = {
     // Your API key for Etherscan
     // Obtain one at https://etherscan.io/
     apiKey: {
-      "arbitrum-sepolia": process.env.ETHERSCAN_API,
+      "mainnet": process.env.ETHERSCAN_API,
       "sepolia": process.env.ETHERSCAN_API,
+      "arbitrum-mainnet": process.env.ETHERSCAN_API,
+      "arbitrum-sepolia": process.env.ETHERSCAN_API,
     },
   },
   customChains: [
@@ -56,7 +64,7 @@ module.exports = {
     enabled: true,
   },
   gasReporter: {
-    enabled: (process.env.REPORT_GAS) ? true : false
+    enabled: process.env.REPORT_GAS ? true : false,
   },
   solidity: {
     compilers: [
@@ -73,8 +81,9 @@ module.exports = {
         },
       },
     ],
-  },  docgen: {
-    output: 'docs',
-    pages: () => 'api.md',
+  },
+  docgen: {
+    output: "docs",
+    pages: () => "api.md",
   },
 };
