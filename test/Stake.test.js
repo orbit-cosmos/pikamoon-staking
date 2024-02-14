@@ -9,10 +9,10 @@ const BigNumber = ethers.BigNumber;
 describe("Pika Staking contract testcases", function () {
   async function deployICOFixture() {
     const [owner, otherAccount, account2] = await ethers.getSigners();
-    const ICOToken = await ethers.getContractFactory("Token");
+    const ICOToken = await ethers.getContractFactory("PikaMoon");
     const PikaStaking = await ethers.getContractFactory("PikaStaking");
 
-    const token = await ICOToken.deploy("PIKAMoon", "PIKA", toWei("5000000000"));
+    const token = await ICOToken.deploy("PIKAMoon", "PIKA", toWei("5000000000"),account2.address,account2.address);
 
     const staking = await PikaStaking.deploy(
       token.address,

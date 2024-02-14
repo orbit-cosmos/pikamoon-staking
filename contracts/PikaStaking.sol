@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { IToken } from "./interfaces/IToken.sol";
+import { IPikaMoon } from "./interfaces/IPikaMoon.sol";
 import { Stake } from "./libraries/Stake.sol";
 import { CommanErrors } from "./libraries/Errors.sol";
 import "./interfaces/IPikaStaking.sol";
@@ -219,7 +219,7 @@ contract PikaStaking is Ownable, Pausable,IPikaStaking {
         poolTokenReserve += _value;
 
         // transfer `_value`
-        IToken(poolToken).transferFrom(msg.sender, address(this), _value);
+        IPikaMoon(poolToken).transferFrom(msg.sender, address(this), _value);
 
         // emits an event
         emit LogStake(msg.sender, msg.sender, (user.stakes.length - 1), _value, lockUntil);
@@ -275,7 +275,7 @@ contract PikaStaking is Ownable, Pausable,IPikaStaking {
         poolTokenReserve -= _value;
 
         // otherwise just return tokens back to holder
-        IToken(poolToken).transfer(msg.sender, _value);
+        IPikaMoon(poolToken).transfer(msg.sender, _value);
 
         // emits an event
         emit LogUnstakeLocked(msg.sender, _stakeId, _value);
@@ -300,7 +300,7 @@ contract PikaStaking is Ownable, Pausable,IPikaStaking {
         // clears user pending yield
         user.pendingYield = 0;
 
-        IToken(poolToken).mint(_staker, pendingYieldToClaim);
+        IPikaMoon(poolToken).mint(_staker, pendingYieldToClaim);
         // emits an event
         emit LogClaimYieldRewards(msg.sender, _staker, pendingYieldToClaim);
     }
