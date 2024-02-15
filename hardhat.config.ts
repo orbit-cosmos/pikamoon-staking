@@ -1,41 +1,55 @@
-require("@nomicfoundation/hardhat-toolbox");
-require("solidity-coverage");
-require("dotenv").config();
-require("solidity-docgen");
-require("hardhat-gas-reporter");
-require("hardhat-contract-sizer");
-module.exports = {
+// @ts-nocheck
+import { HardhatUserConfig } from "hardhat/config";
+import "@nomicfoundation/hardhat-toolbox";
+import "solidity-coverage";
+import * as dotenv from "dotenv";
+dotenv.config();
+import "solidity-docgen";
+import "hardhat-gas-reporter";
+import "hardhat-contract-sizer";
+
+const alchemyKey = process.env.ALCHEMY_KEY;
+const pk = process.env.PK;
+
+const etherscanApi = process.env.ETHERSCAN_API;
+
+if (!alchemyKey || !pk || !etherscanApi) {
+  throw new Error("One or more required environment variables are not defined.");
+}
+
+
+const config: HardhatUserConfig = {
   defaultNetwork: "hardhat",
   networks: {
     // LOCAL
     hardhat: {
       forking: {
         // url: `https://mainnet.infura.io/v3/${process.env.INFURA_KEY}`,
-        url: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`,
+        url: `https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}`,
         blockNumber: 19067936,
       },
       chainId: 31337,
     },
     // ethereum mainnet
     mainnet: {
-      url: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`,
+      url: `https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}`,
       chainId: 1,
-      accounts: [process.env.PK],
+      accounts: [pk],
     },
     // sepolia
     sepolia: {
-      accounts: [process.env.PK],
+      accounts: [pk],
       chainId: 11155111,
-      url: `https://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`,
+      url: `https://eth-sepolia.g.alchemy.com/v2/${alchemyKey}`,
     },
     // ARBITRUM
     "arbitrum-mainnet": {
-      accounts: [process.env.PK],
+      accounts: [pk],
       chainId: 42161,
       url: "https://arb1.arbitrum.io/rpc",
     },
     "arbitrum-sepolia": {
-      accounts: [process.env.PK],
+      accounts: [pk],
       chainId: 421614,
       url: "https://sepolia-rollup.arbitrum.io/rpc",
     },
@@ -44,10 +58,10 @@ module.exports = {
     // Your API key for Etherscan
     // Obtain one at https://etherscan.io/
     apiKey: {
-      "mainnet": process.env.ETHERSCAN_API,
-      "sepolia": process.env.ETHERSCAN_API,
-      "arbitrum-mainnet": process.env.ETHERSCAN_API,
-      "arbitrum-sepolia": process.env.ETHERSCAN_API,
+      "mainnet": etherscanApi,
+      "sepolia": etherscanApi,
+      "arbitrum-mainnet": etherscanApi,
+      "arbitrum-sepolia": etherscanApi,
     },
   },
   customChains: [
@@ -87,3 +101,9 @@ module.exports = {
     pages: () => "api.md",
   },
 };
+
+export default config;
+
+
+
+

@@ -56,25 +56,25 @@ contract PikaStaking is Ownable, Pausable,IPikaStaking {
     uint256 public poolTokenReserve;
 
     /**
-     * @dev ILV/second determines yield farming reward base
+     * @dev PIKA/second determines yield farming reward base
      *      used by the yield pools controlled by the factory.
      */
     uint192 public pikaPerSecond;
 
     /**
-     * @dev ILV/second decreases by 3% every seconds/update
+     * @dev PIKA/second decreases by 3% every seconds/update
      *      an update is triggered by executing `updatePIKAPerSecond` public function.
      */
     uint256 public secondsPerUpdate;
 
     /**
-     * @dev End time is the last timestamp when ILV/second can be decreased;
+     * @dev End time is the last timestamp when PIKA/second can be decreased;
      *      it is implied that yield farming stops after that timestamp.
      */
     uint256 public endTime;
 
     /**
-     * @dev Each time the ILV/second ratio gets updated, the timestamp
+     * @dev Each time the PIKA/second ratio gets updated, the timestamp
      *      when the operation has occurred gets recorded into `lastRatioUpdate`.
      * @dev This timestamp is then used to check if seconds/update `secondsPerUpdate`
      *      has passed when decreasing yield reward by 3%.
@@ -96,7 +96,7 @@ contract PikaStaking is Ownable, Pausable,IPikaStaking {
     /**
      * @dev Fired in `_updateRewards()`.
      *
-     * @param by an address which processed the rewards (staker or ilv pool contract
+     * @param by an address which processed the rewards (staker or PIKA pool contract
      *            in case of a multiple claim call)
      * @param from an address which received the yield
      * @param yieldValue value of yield processed
@@ -112,12 +112,12 @@ contract PikaStaking is Ownable, Pausable,IPikaStaking {
      */
     event LogUnstakeLocked(address indexed to, uint256 stakeId, uint256 value);
     /**
-     * @dev Fired in `updateILVPerSecond()`.
+     * @dev Fired in `updatePIKAPerSecond()`.
      *
      * @param by an address which executed an action
-     * @param newIlvPerSecond new ILV/second value
+     * @param newPIKAPerSecond new PIKA/second value
      */
-    event LogUpdatePikaPerSecond(address indexed by, uint256 newIlvPerSecond);
+    event LogUpdatePikaPerSecond(address indexed by, uint256 newPIKAPerSecond);
     /**
      * @dev Fired in `_sync()` and dependent functions (stake, unstake, etc.).
      *
@@ -138,7 +138,7 @@ contract PikaStaking is Ownable, Pausable,IPikaStaking {
     /**
      * @dev Fired in `_claimYieldRewards()`.
      *
-     * @param by an address which claimed the rewards (staker or ilv pool contract
+     * @param by an address which claimed the rewards (staker or PIKA pool contract
      *            in case of a multiple claim call)
      * @param from an address which received the yield
      * @param value value of yield paid
@@ -227,7 +227,7 @@ contract PikaStaking is Ownable, Pausable,IPikaStaking {
 
     /**
      * @dev Unstakes a stake that has been previously locked, and is now in an unlocked
-     *      state. Otherwise it transfers ILV or LP
+     *      state. Otherwise it transfers PIKA
      *      from the contract balance.
      *
      * @param _stakeId stake ID to unstake from, zero-indexed
@@ -312,7 +312,7 @@ contract PikaStaking is Ownable, Pausable,IPikaStaking {
      */
     function setEndTime(uint32 _endTime) external onlyOwner {
         // checks if _endTime is a timestap after the last time that
-        // ILV/second has been updated
+        // PIKA/second has been updated
         if (!(_endTime > lastRatioUpdate)) {
             revert CommanErrors.WrongEndTime();
         }
@@ -381,7 +381,7 @@ contract PikaStaking is Ownable, Pausable,IPikaStaking {
      *      updates factory state via `updatePIKAPerSecond`
      */
     function _sync() internal {
-        // update ILV per second value in factory if required
+        // update PIKA per second value in factory if required
         if (shouldUpdateRatio()) {
             updatePIKAPerSecond();
         }
@@ -405,10 +405,10 @@ contract PikaStaking is Ownable, Pausable,IPikaStaking {
         uint256 secondsPassed = currentTimestamp - lastYieldDistribution;
 
         // calculate the reward
-        uint256 ilvReward = (secondsPassed * pikaPerSecond * weight) / totalWeight;
+        uint256 pikaReward = (secondsPassed * pikaPerSecond * weight) / totalWeight;
 
         // update rewards per weight and `lastYieldDistribution`
-        yieldRewardsPerWeight += ilvReward.getRewardPerWeight(globalWeight);
+        yieldRewardsPerWeight += pikaReward.getRewardPerWeight(globalWeight);
         lastYieldDistribution = currentTimestamp;
 
         // emits an event
@@ -496,10 +496,10 @@ contract PikaStaking is Ownable, Pausable,IPikaStaking {
             uint256 multiplier = _now256() > endTime
                 ? endTime - _lastYieldDistribution
                 : _now256() - _lastYieldDistribution;
-            uint256 ilvRewards = (multiplier * weight * pikaPerSecond) / totalWeight;
+            uint256 pikaRewards = (multiplier * weight * pikaPerSecond) / totalWeight;
 
             // recalculated value for `yieldRewardsPerWeight`
-            newYieldRewardsPerWeight = ilvRewards.getRewardPerWeight((globalWeight)) + yieldRewardsPerWeight;
+            newYieldRewardsPerWeight = pikaRewards.getRewardPerWeight((globalWeight)) + yieldRewardsPerWeight;
         } else {
             // if smart contract state is up to date, we don't recalculate
             newYieldRewardsPerWeight = yieldRewardsPerWeight;
