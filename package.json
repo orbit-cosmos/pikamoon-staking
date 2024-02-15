@@ -1,10 +1,21 @@
 {
-  "name": "hardhat-project",
+  "name": "pikamoon-staking",
+  "version": "1.0.0",
+  "author": "Asadullah Khan <asadullah.khan@tigercrypto.uk>",
+  "license": "MIT",
+  "description": "This project is about staking smart contract for pikamoon token",
+  "keywords": ["staking","defi","erc20","solidity","blockchain","smart contracts"],
+  "repository": {
+    "type": "git",
+    "url": "https://bitbucket.org/orbitcosmos/pikamoon-staking"
+  },
   "scripts": {
     "preinstall": "npx only-allow yarn"
   }, 
   "engines": {
-    "npm": "please-use-yarn"
+    "npm": "please-use-yarn",
+    "yarn": ">= 1.22.21",
+    "node": ">= 20.11.0"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
