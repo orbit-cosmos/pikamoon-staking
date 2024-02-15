@@ -1,18 +1,16 @@
-const hre = require("hardhat");
-const StakingARG = require("../args/Staking");
+import { ethers } from "hardhat";
+import {stakingArgs} from "../args/Staking";
 async function main() {
   const [owner] = await ethers.getSigners();
 
   const PikaStaking = await ethers.getContractFactory("PikaStaking");
 
   const staking = await PikaStaking.deploy(
-    StakingARG[0],
+    stakingArgs[0],
 
   );
-  await staking.deployed();
 
-
-  console.log("staking", staking.address);
+  console.log("staking", staking.target);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

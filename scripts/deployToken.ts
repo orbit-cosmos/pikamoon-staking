@@ -1,12 +1,12 @@
-const hre = require("hardhat");
-const Token = require("../args/Token");
+
+import { ethers } from "hardhat";
+import {tokenArgs} from "../args/Token";
 async function main() {
   const [owner] = await ethers.getSigners();
   const ICOToken = await ethers.getContractFactory("ICOToken");
-  const token = await ICOToken.deploy(Token[0], Token[1], Token[2],Token[3],Token[4]);
-  await token.deployed();
+  const token = await ICOToken.deploy(tokenArgs[0], tokenArgs[1], tokenArgs[2],tokenArgs[3],tokenArgs[4]);
 
-  console.log("ICOToken", token.address);
+  console.log("ICOToken", token.target);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

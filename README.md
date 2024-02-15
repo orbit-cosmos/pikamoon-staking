@@ -7,7 +7,7 @@ Try running some of the following tasks:
 ```shell
 
 npx hardhat node
-npm run compile
-npm run test
+npx hardhat compile
+npx hardhat test
 npx hardhat run scripts/deployICO.js
 ```
