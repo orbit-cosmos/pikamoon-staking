@@ -9,5 +9,5 @@ Try running some of the following tasks:
 npx hardhat node
 npx hardhat compile
 npx hardhat test
-npx hardhat run scripts/deployICO.js
+npx hardhat run scripts/deployStaking.js
 ```
