@@ -22,6 +22,7 @@ describe("Pika Staking contract testcases", function () {
       token.target,
     );
     console.log("owner",owner.address)
+    // grant admin role to staking contract
       await token.connect(owner).grantRole("0xb19546dff01e856fb3f010c267a7b1c60363cf8a4664e21cc89c26224620214e",staking.target)
 
     return { token, staking, owner, otherAccount, account2 };

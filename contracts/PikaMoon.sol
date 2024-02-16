@@ -19,7 +19,7 @@ contract PikaMoon is ERC20Capped, AccessControl, IPikaMoon {
     uint16 public marketingTax = 10; // 1%
     uint16 public ecosystemTax = 10; // 1%
     uint16 public burnTax = 5; // 0.5%
-    bool public isTaxEnabled;
+    bool public isTaxEnabled = true;
 
     /**
      * @dev Constructor function to initialize the contract.
@@ -33,18 +33,29 @@ contract PikaMoon is ERC20Capped, AccessControl, IPikaMoon {
         address _ecosystemdevelopment,
         address _marketing
     ) ERC20(name, symbol) ERC20Capped(_cap) {
+        // grant deployer as  admin role
         _grantRole(OWNER_ROLE, _msgSender());
+        //set owner role to default admin role
         _setRoleAdmin(OWNER_ROLE, OWNER_ROLE);
+        // check for zero adderss
         if (_ecosystemdevelopment == address(0)) {
             revert CommanErrors.ZeroAddress();
         }
         if (_marketing == address(0)) {
             revert CommanErrors.ZeroAddress();
         }
+        //set marketing and ecosystem wallet
         ecosystemdevelopment = _ecosystemdevelopment;
         marketing = _marketing;
+        // exclude owner from tax
+        isExcludeFromTax[_msgSender()] = true;
     }
-
+    /**
+     * @dev Function to get decimals.
+     */
+    function decimals() public pure override returns (uint8) {
+        return 9;
+    }
     /**
      * @dev Function to mint new tokens and assign them to a specified address.
      * @param to The address to which the new tokens are minted.
@@ -66,11 +77,11 @@ contract PikaMoon is ERC20Capped, AccessControl, IPikaMoon {
     }
 
     /**
-     * @dev Function to set whitelisting
-     * @param _user The address to be white.listed or blacklisted
+     * @dev Function to exclude or include From Tax
+     * @param _user The address to be exclude or include From Tax
      * @param _isExcludeFromTax true or false
      */
-    function setWhitelisting(
+    function excludeFromTax(
         address _user,
         bool _isExcludeFromTax
     ) external onlyRole(OWNER_ROLE) {
