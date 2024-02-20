@@ -1,6 +1,6 @@
 # Pika Staking Smart contract
 
-This project is about staking smart contract.
+This project is about pikamoon token & staking smart contract.
 
 Try running some of the following tasks:
 

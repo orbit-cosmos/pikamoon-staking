@@ -10,7 +10,9 @@
     "url": "https://bitbucket.org/orbitcosmos/pikamoon-staking"
   },
   "scripts": {
-    "preinstall": "npx only-allow yarn"
+    "preinstall": "npx only-allow yarn",
+    "compile": "hardhat compile",
+    "test": "hardhat test"
   }, 
   "engines": {
     "npm": "please-use-yarn",
