@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
-import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { IPikaMoon } from "./interfaces/IPikaMoon.sol";
-import { Stake } from "./libraries/Stake.sol";
-import { CommanErrors } from "./libraries/Errors.sol";
-import "./interfaces/IPikaStaking.sol";
+import {Pausable} from '@openzeppelin/contracts/utils/Pausable.sol';
+import {Ownable} from '@openzeppelin/contracts/access/Ownable.sol';
+import {IPikaMoon} from './interfaces/IPikaMoon.sol';
+import {Stake} from './libraries/Stake.sol';
+import {CommanErrors} from './libraries/Errors.sol';
+import './interfaces/IPikaStaking.sol';
+
 // import "hardhat/console.sol";
 
-contract PikaStaking is Ownable, Pausable,IPikaStaking {
+contract PikaStaking is Ownable, Pausable, IPikaStaking {
     using Stake for Stake.Data;
     using Stake for uint256;
 
@@ -209,7 +210,7 @@ contract PikaStaking is Ownable, Pausable,IPikaStaking {
         // makes sure stakeWeight is valid
         assert(stakeWeight > 0);
         // create and save the stake (append it to stakes array)
-        Stake.Data memory userStake = Stake.Data({ value: _value, lockedFrom: _now256(), lockedUntil: lockUntil });
+        Stake.Data memory userStake = Stake.Data({value: _value, lockedFrom: _now256(), lockedUntil: lockUntil});
         // pushes new stake to `stakes` array
         user.stakes.push(userStake);
         // update user weight

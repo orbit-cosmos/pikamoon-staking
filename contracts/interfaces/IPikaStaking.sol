@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
-import "../libraries/Stake.sol";
+import '../libraries/Stake.sol';
+
 interface IPikaStaking {
     function stake(uint256 _value, uint256 _lockDuration) external;
 
@@ -18,17 +19,11 @@ interface IPikaStaking {
 
     function shouldUpdateRatio() external view returns (bool);
 
-    function pendingRewards(
-        address _staker
-    ) external view returns (uint256 pendingYield);
+    function pendingRewards(address _staker) external view returns (uint256 pendingYield);
 
     function balanceOf(address _user) external view returns (uint256 balance);
 
     function getStakesLength(address _user) external view returns (uint256);
 
-    function getStake(
-        address _user,
-        uint256 _stakeId
-    ) external view returns (Stake.Data memory);
+    function getStake(address _user, uint256 _stakeId) external view returns (Stake.Data memory);
 }
-
