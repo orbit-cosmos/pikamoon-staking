@@ -7,6 +7,7 @@ dotenv.config();
 import "solidity-docgen";
 import "hardhat-gas-reporter";
 import "hardhat-contract-sizer";
+import "@nomiclabs/hardhat-solhint";
 
 const alchemyKey = process.env.ALCHEMY_KEY;
 const pk = process.env.PK;
@@ -97,8 +98,9 @@ const config: HardhatUserConfig = {
     ],
   },
   docgen: {
-    output: "docs",
-    pages: () => "api.md",
+    path: './docs',
+    clear: true,
+    runOnCompile: true,
   },
 };
 

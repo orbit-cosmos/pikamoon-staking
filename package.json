@@ -4,7 +4,14 @@
   "author": "Asadullah Khan <asadullah.khan@tigercrypto.uk>",
   "license": "MIT",
   "description": "This project is about staking smart contract for pikamoon token",
-  "keywords": ["staking","defi","erc20","solidity","blockchain","smart contracts"],
+  "keywords": [
+    "staking",
+    "defi",
+    "erc20",
+    "solidity",
+    "blockchain",
+    "smart contracts"
+  ],
   "repository": {
     "type": "git",
     "url": "https://bitbucket.org/orbitcosmos/pikamoon-staking"
@@ -13,7 +20,7 @@
     "preinstall": "npx only-allow yarn",
     "compile": "hardhat compile",
     "test": "hardhat test"
-  }, 
+  },
   "engines": {
     "npm": "please-use-yarn",
     "yarn": ">= 1.22.21",
@@ -26,8 +33,10 @@
   "dependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
     "@nomicfoundation/hardhat-ethers": "^3.0.0",
+    "@nomicfoundation/hardhat-foundry": "^1.1.1",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
     "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "@nomiclabs/hardhat-solhint": "^3.0.1",
     "@openzeppelin/contracts": "^5.0.1",
     "@typechain/ethers-v6": "^0.5.0",
     "@typechain/hardhat": "^9.0.0",
@@ -38,6 +47,9 @@
     "ethers": "^6.4.0",
     "hardhat-contract-sizer": "^2.10.0",
     "hardhat-gas-reporter": "^1.0.8",
+    "prettier": "^3.2.5",
+    "prettier-plugin-solidity": "^1.3.1",
+    "solhint-plugin-prettier": "^0.1.0",
     "solidity-coverage": "^0.8.1",
     "solidity-docgen": "^0.6.0-beta.36",
     "ts-node": "^10.9.2",

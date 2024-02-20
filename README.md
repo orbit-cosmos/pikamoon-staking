@@ -8,6 +8,13 @@ Try running some of the following tasks:
 
 npx hardhat node
 npx hardhat compile
+npx hardhat coverage
+npx hardhat check
+npx hardhat size-contracts
+npx hardhat docgen   
+npx hardhat flatten   
+npx hardhat verify   
 npx hardhat test
-npx hardhat run scripts/deployStaking.js
+npx hardhat run scripts/deployStaking.js --network sepolia
+npx hardhat --help
 ```
