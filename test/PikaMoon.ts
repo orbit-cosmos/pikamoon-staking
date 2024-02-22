@@ -33,6 +33,7 @@ describe("Pikamoon token", function () {
 
     before(async () => {
       let fixture = await loadFixture(deployFixture);
+      //@ts-ignore
       token = fixture?.token;
       owner = fixture?.owner;
       otherAccount = fixture?.otherAccount;
@@ -41,7 +42,9 @@ describe("Pikamoon token", function () {
     });
 
     it("should allow minting", async () => {
+      let bal = await token.balanceOf(otherAccount.address)
       await token.mint(otherAccount.address, toWei(5000));
+      expect(await token.balanceOf(otherAccount.address)).to.be.equal(bal+toWei(5000));
     });
     it("should be equal to decimal 9", async () => {
       expect(await token.decimals()).to.be.equal(9);
@@ -72,13 +75,12 @@ describe("Pikamoon token", function () {
         token.connect(otherAccount).transfer(owner.address, toWei(500))
       ).to.emit(token, "Transfer");
       let tax = await token
-        .connect(otherAccount)
-        .calculateTax(otherAccount.address, toWei(500));
+      .connect(otherAccount)
+      .calculateTax(otherAccount.address, toWei(500));
       expect(await token.balanceOf(owner.address)).to.be.equal(
         toWei(500) - tax[0]
       );
     });
-
     it("should allow transferFrom", async () => {
       expect(
         await token.allowance(otherAccount.address, owner.address)
@@ -126,9 +128,29 @@ describe("Pikamoon token", function () {
       expect(await token.burnTax()).to.be.equal(10);
     });
     it("should allow burning", async () => {
+      let bal = await token.balanceOf(otherAccount.address)
       await expect(token.burn(otherAccount.address, toWei(5)))
         .to.emit(token, "Transfer")
         .withArgs(otherAccount.address, ZeroAddress, toWei(5));
+      expect(await token.balanceOf(otherAccount.address)).to.be.equal(bal-toWei(5));
     });
+    it("should calculate tax correctly",async () => {
+      await token.toggleTax();
+      await token.excludeFromTax(otherAccount.address, false);
+      let value = toWei(500)
+      let burnAmount = (value * (await token.burnTax())) / BigInt(1000);
+      let marketingAmount = (value * await token.marketingTax()) / BigInt(1000);
+      let ecosystemAmount = (value * await token.ecosystemTax()) / BigInt(1000);
+      let taxAmount = burnAmount + marketingAmount + ecosystemAmount;
+      let tax = await token
+      .calculateTax(otherAccount.address, toWei(500));
+      expect(tax[0]).to.be.eq(taxAmount)
+      
+      await token.excludeFromTax(otherAccount.address, true);
+      tax = await token
+      .connect(otherAccount)
+      .calculateTax(otherAccount.address, toWei(500));
+      expect(tax[0]).to.be.eq(0)
+    })
   });
 });

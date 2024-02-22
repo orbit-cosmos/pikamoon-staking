@@ -84,35 +84,6 @@ contract PikaMoon is ERC20Capped, AccessControl, IPikaMoon {
         return 9;
     }
 
-    /**
-     * @dev Function to set marketing address.
-     * @param _marketing The address to  marketing wallet.
-     */
-    function changeMarketingWallet(
-        address _marketing
-    ) external onlyRole(OWNER_ROLE) {
-        if (_marketing == address(0)) {
-            revert CommanErrors.ZeroAddress();
-        }
-        assembly {
-            sstore(marketingWallet.slot, _marketing)
-        }
-    }
-
-    /**
-     * @dev Function to set ecosystem address.
-     * @param _ecoSystemWallet The address to ecosystem wallet.
-     */
-    function changeEcoSystemWallet(
-        address _ecoSystemWallet
-    ) external onlyRole(OWNER_ROLE) {
-        if (_ecoSystemWallet == address(0)) {
-            revert CommanErrors.ZeroAddress();
-        }
-        assembly {
-            sstore(ecoSystemWallet.slot, _ecoSystemWallet)
-        }
-    }
 
     /**
      * @dev Function to mint new tokens and assign them to a specified address.
@@ -134,6 +105,37 @@ contract PikaMoon is ERC20Capped, AccessControl, IPikaMoon {
         _burn(owner, amount);
     }
 
+    /**
+     * @dev Function to set ecosystem address.
+     * @param _ecoSystemWallet The address to ecosystem wallet.
+     */
+    function changeEcoSystemWallet(
+        address _ecoSystemWallet
+    ) external onlyRole(OWNER_ROLE) {
+        if (_ecoSystemWallet == address(0)) {
+            revert CommanErrors.ZeroAddress();
+        }
+        assembly {
+            sstore(ecoSystemWallet.slot, _ecoSystemWallet)
+        }
+    }
+
+    /**
+     * @dev Function to set marketing address.
+     * @param _marketing The address to  marketing wallet.
+     */
+    function changeMarketingWallet(
+        address _marketing
+    ) external onlyRole(OWNER_ROLE) {
+        if (_marketing == address(0)) {
+            revert CommanErrors.ZeroAddress();
+        }
+        assembly {
+            sstore(marketingWallet.slot, _marketing)
+        }
+    }
+
+    
     /**
      * @dev Function to update isExcludeFromTax mapping to exclude or include From Tax
      * @param _user The address to be exclude or include From Tax
