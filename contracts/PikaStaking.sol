@@ -6,13 +6,14 @@ import {IPikaMoon} from './interfaces/IPikaMoon.sol';
 import {Stake} from './libraries/Stake.sol';
 import {CommanErrors} from './libraries/Errors.sol';
 import './interfaces/IPikaStaking.sol';
+// import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 // import "hardhat/console.sol";
 
 contract PikaStaking is Ownable, Pausable, IPikaStaking {
     using Stake for Stake.Data;
     using Stake for uint256;
-
+//   using SafeERC20 for IERC20;
     /// @dev Data structure representing token holder.
     struct User {
         /// @dev pending yield rewards to be claimed

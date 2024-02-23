@@ -93,8 +93,10 @@ describe("Pikamoon token", function () {
       await expect(
         token.transferFrom(otherAccount.address, owner.address, toWei(500))
       ).to.emit(token, "Transfer");
+      let tax = await token
+      .calculateTax(otherAccount.address, toWei(500));
       expect(await token.balanceOf(owner.address)).to.be.equal(
-        bal + toWei(500)
+        bal + toWei(500) - tax[0]
       );
     });
     it("should allow excluding from tax", async () => {

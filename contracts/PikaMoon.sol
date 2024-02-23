@@ -4,8 +4,7 @@ pragma solidity ^0.8.20;
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ERC20Capped} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Capped.sol";
-// import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 import {IPikaMoon, IERC20} from "./interfaces/IPikaMoon.sol";
 import {CommanErrors} from "./libraries/Errors.sol";
 import "./interfaces/IUniswapV2Router02.sol";
@@ -15,7 +14,6 @@ import "./interfaces/IUniswapV2Router02.sol";
  * @dev A simple ERC20 token contract that allows minting and burning of tokens.
  */
 contract PikaMoon is ERC20Capped, AccessControl, IPikaMoon {
-    // using SafeERC20 for IERC20;
     bytes32 private constant OWNER_ROLE = keccak256("OWNER_ROLE");
     address public ecoSystemWallet;
     address public marketingWallet;
@@ -57,7 +55,6 @@ contract PikaMoon is ERC20Capped, AccessControl, IPikaMoon {
         ecoSystemWallet = _ecosystemdevelopment;
         marketingWallet = _marketing;
         // exclude owner & this contract from tax
-        isExcludeFromTax[_msgSender()] = true;
         isExcludeFromTax[address(this)] = true;
     }
 
@@ -83,7 +80,6 @@ contract PikaMoon is ERC20Capped, AccessControl, IPikaMoon {
     function decimals() public pure override returns (uint8) {
         return 9;
     }
-
 
     /**
      * @dev Function to mint new tokens and assign them to a specified address.
@@ -135,7 +131,6 @@ contract PikaMoon is ERC20Capped, AccessControl, IPikaMoon {
         }
     }
 
-    
     /**
      * @dev Function to update isExcludeFromTax mapping to exclude or include From Tax
      * @param _user The address to be exclude or include From Tax
@@ -203,7 +198,7 @@ contract PikaMoon is ERC20Capped, AccessControl, IPikaMoon {
     function setEcoSystemTax(
         uint16 _ecosystemTax
     ) external onlyRole(OWNER_ROLE) {
-             assembly {
+        assembly {
             let a := sload(ecosystemTax.slot)
             let b := shl(mul(ecosystemTax.offset, 8), _ecosystemTax)
             let c := and(
@@ -219,7 +214,7 @@ contract PikaMoon is ERC20Capped, AccessControl, IPikaMoon {
      * @param _burnTax tax value
      */
     function setBurnTax(uint16 _burnTax) external onlyRole(OWNER_ROLE) {
-             assembly {
+        assembly {
             let a := sload(burnTax.slot)
             let b := shl(mul(burnTax.offset, 8), _burnTax)
             let c := and(
@@ -325,10 +320,10 @@ contract PikaMoon is ERC20Capped, AccessControl, IPikaMoon {
     {
         // calculate tax
         if (isTaxEnabled && !(isExcludeFromTax[msgSender])) {
+            burnAmount = (value * burnTax) / 1000;
+            marketingAmount = (value * marketingTax) / 1000;
+            ecosystemAmount = (value * ecosystemTax) / 1000;
             unchecked {
-                burnAmount = (value * burnTax) / 1000;
-                marketingAmount = (value * marketingTax) / 1000;
-                ecosystemAmount = (value * ecosystemTax) / 1000;
                 tax = burnAmount + marketingAmount + ecosystemAmount;
             }
         }

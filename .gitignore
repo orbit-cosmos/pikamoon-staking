@@ -6,3 +6,6 @@ artifacts
 .env
 coverage.json
 typechain-types
+cache
+out
+cache_forge
