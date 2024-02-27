@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "../contracts/PikaMoon.sol";
-
 contract ContractTest is Test {
     PikaMoon pikamoon;
     function setUp() public {
@@ -27,5 +26,7 @@ contract ContractTest is Test {
     function testFuzzTransfer(address add,bool b) public {
         pikamoon.excludeFromTax(add,b);
     }
+
+ 
 
 }

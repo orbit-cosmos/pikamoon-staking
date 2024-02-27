@@ -14,7 +14,7 @@ describe("Pika Staking contract testcases", function () {
     const ICOToken = await ethers.getContractFactory("PikaMoon");
     const PikaStaking = await ethers.getContractFactory("PikaStaking");
 
-    const token = await ICOToken.deploy(
+    const token:PikaMoon = await ICOToken.deploy(
       "PIKAMoon",
       "PIKA",
       toWei(50_000_000_000),
@@ -22,7 +22,7 @@ describe("Pika Staking contract testcases", function () {
       account2.address
     );
 
-    const staking = await PikaStaking.deploy(token.target);
+    const staking:PikaStaking = await PikaStaking.deploy(token.target);
     console.log("owner", owner.address);
     // grant admin role to staking contract
     await token

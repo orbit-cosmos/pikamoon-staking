@@ -298,7 +298,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         // check pending yield rewards to claim and save to memory
         uint256 pendingYieldToClaim = user.pendingYield;
         // if pending yield is zero - just return silently
-        if (pendingYieldToClaim == 0) revert CommanErrors.ZeroAmount();
+        if (pendingYieldToClaim == 0) return;
         // clears user pending yield
         user.pendingYield = 0;
 

@@ -56,6 +56,18 @@ contract PikaMoon is ERC20Capped, AccessControl, IPikaMoon {
         marketingWallet = _marketing;
         // exclude owner & this contract from tax
         isExcludeFromTax[address(this)] = true;
+
+
+
+        // IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(
+        //     0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
+        // );
+        // // set the rest of the contract variables
+        // uniswapV2Router = _uniswapV2Router;
+        // // Create a uniswap pair for this new token
+        // uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory())
+        //     .createPair(address(this), _uniswapV2Router.WETH());
+
     }
 
     /**
@@ -327,5 +339,23 @@ contract PikaMoon is ERC20Capped, AccessControl, IPikaMoon {
                 tax = burnAmount + marketingAmount + ecosystemAmount;
             }
         }
+    }
+      function swapTokensForETH(uint256 tokenAmount) private {
+        // generate the pancake uniswapV2Pair path of token -> weth
+
+        address[] memory path = new address[](2);
+        path[0] = address(this);
+        path[1] = uniswapV2Router.WETH();
+
+        _approve(address(this), address(uniswapV2Router), tokenAmount);
+
+        // make the swap
+        uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+            tokenAmount,
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
     }
 }

@@ -81,21 +81,37 @@ const config: HardhatUserConfig = {
   gasReporter: {
     enabled: process.env.REPORT_GAS ? true : false,
   },
+  // solidity: {
+  //   compilers: [
+  //     {
+  //       version: "0.8.20",
+  //       settings: {
+  //         // Disable the optimizer when debugging
+  //         // https://hardhat.org/hardhat-network/#solidity-optimizer-support
+  //         optimizer: {
+  //           enabled: true,
+  //           runs: 200,
+  //         },
+  //         evmVersion: "paris",
+  //       },
+  //     },
+  //   ],
+  // },
   solidity: {
-    compilers: [
-      {
-        version: "0.8.20",
-        settings: {
-          // Disable the optimizer when debugging
-          // https://hardhat.org/hardhat-network/#solidity-optimizer-support
-          optimizer: {
-            enabled: true,
-            runs: 200,
+    version: "0.8.20", // any version you want
+    settings: {
+      viaIR: true,
+      optimizer: {
+        enabled: true,
+        runs: 200,
+        details: {
+          yulDetails: {
+            optimizerSteps: "u",
           },
-          evmVersion: "paris",
         },
       },
-    ],
+      evmVersion: "paris",
+    },
   },
   docgen: {
     path: './docs',
