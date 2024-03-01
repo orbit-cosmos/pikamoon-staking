@@ -43,7 +43,7 @@ async function readFile() : Promise<string[]>{
 
 describe("Check if merkle root is working", function () {
   async function deployICOFixture() {
-    const [owner, addr1, addr2, addr3, addr4, addr5] =
+    const [owner, addr1, addr2, addr3, addr4,addr5] =
       await ethers.getSigners();
     const ClaimBonusPika = await ethers.getContractFactory("ClaimBonusPika");
     const ICOToken = await ethers.getContractFactory("PikaMoon");
@@ -85,15 +85,19 @@ describe("Check if merkle root is working", function () {
       token.target,
       root,
     );
-    await token.mint(claimPika.target, toWei(50_000));
+    await token.mint(claimPika.target, toWei(233127.15));
 
-    return { token, merkleTree, list, claimPika, owner, addr1 };
+    return { token, merkleTree, list, claimPika, owner, addr1,addr2,addr3,addr4,addr5 };
   }
   describe("", async () => {
     let token: PikaMoon,
       claimPika: ClaimBonusPika,
       owner: HardhatEthersSigner,
       addr1: HardhatEthersSigner,
+      addr2: HardhatEthersSigner,
+      addr3: HardhatEthersSigner,
+      addr4: HardhatEthersSigner,
+      addr5: HardhatEthersSigner,
       merkleTree: MerkleTree,
       list: string[];
     before(async () => {
@@ -103,28 +107,52 @@ describe("Check if merkle root is working", function () {
       merkleTree = fixture?.merkleTree;
       list = fixture?.list;
       addr1 = fixture?.addr1;
+      addr2 = fixture?.addr2;
+      addr3 = fixture?.addr3;
+      addr4 = fixture?.addr4;
+      addr5 = fixture?.addr5;
       owner = fixture?.owner;
     });
     it("Should be able to verify if a given address can claim or not", async function () {
       // Compute the Merkle Proof of the owner address (0'th item in list)
       // off-chain. The leaf node is the hash of that value.
-
-      console.log("list[0]",list[0])
-      const leaf = keccak256(list[0]);
-      const proof = merkleTree.getHexProof(leaf);
+      
+      let leaf = keccak256(list[0]);
+      let proof = merkleTree.getHexProof(leaf);
 
       await expect(
-        claimPika.connect(addr1).claimBonusPika(toWei(241.1), proof),
+        claimPika.connect(owner).claimBonusPika(toWei(241.1), proof),
       ).to.be.revertedWith("Invalid markle proof");
-      await claimPika.connect(addr1).claimBonusPika(toWei(241.9), proof);
-      await expect(
-        claimPika.connect(addr1).claimBonusPika(toWei(241.9), proof),
-      ).to.be.revertedWith("already claimed");
-      let tax = await token.calculateTax(owner.address, toWei(241.9));
+      await claimPika.connect(owner).claimBonusPika(toWei(241.9), proof);
+      
+      
+      leaf = keccak256(list[1]);
+      proof = merkleTree.getHexProof(leaf);
+      await claimPika.connect(addr1).claimBonusPika(toWei(10182.3), proof);
+      leaf = keccak256(list[2]);
+      proof = merkleTree.getHexProof(leaf);
+      await claimPika.connect(addr2).claimBonusPika(toWei(46642.6), proof);
+      leaf = keccak256(list[3]);
+      proof = merkleTree.getHexProof(leaf);
+      await claimPika.connect(addr3).claimBonusPika(toWei(171250.0), proof);
+      leaf = keccak256(list[4]);
+      proof = merkleTree.getHexProof(leaf);
+      await claimPika.connect(addr4).claimBonusPika(toWei(4810.35), proof);
 
+      
+      await expect(
+        claimPika.connect(owner).claimBonusPika(toWei(241.9), proof),
+      ).to.be.revertedWith("already claimed");
+
+
+      let tax = await token.calculateTax(addr1.address, toWei(10182.3));
       expect(await token.balanceOf(addr1.address)).to.be.equal(
-        toWei(241.9) - tax[0],
+        toWei(10182.3) - tax[0],
       );
+      expect(await token.balanceOf(claimPika.target)).to.be.equal(
+        0,
+      );
+
     });
 
     it("withdraw tokens", async () => {
