@@ -116,7 +116,7 @@ describe("Check if merkle root is working", function () {
     it("Should be able to verify if a given address can claim or not", async function () {
       // Compute the Merkle Proof of the owner address (0'th item in list)
       // off-chain. The leaf node is the hash of that value.
-      
+        console.log("----->",list)
       let leaf = keccak256(list[0]);
       let proof = merkleTree.getHexProof(leaf);
 

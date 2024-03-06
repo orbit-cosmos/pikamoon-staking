@@ -15,7 +15,7 @@ npx hardhat docgen
 npx hardhat flatten   
 npx hardhat verify   
 npx hardhat test
-forge test -vvv 
+forge test -vvvvv --gas-report
 npx hardhat run scripts/deployStaking.js --network sepolia
 npx hardhat --help
 ```

@@ -1,0 +1,3 @@
+ContractTest:testExample() (gas: 10437)
+ContractTest:testFailTransfer() (gas: 13465)
+ContractTest:testFuzzTransfer(address,bool) (runs: 256, μ: 19527, ~: 28078)

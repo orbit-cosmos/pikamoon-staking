@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
-
+import "forge-std/console.sol";
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import {IPikaMoon} from "./interfaces/IPikaMoon.sol";
+
 contract ClaimBonusPika is Ownable {
     bytes32 public merkleRoot;
     address public token;
@@ -19,6 +20,8 @@ contract ClaimBonusPika is Ownable {
         uint256 _amount,
         bytes32[] calldata _merkleProof
     ) external  {
+        console.log("------->");
+        console.log(msg.sender);
         require(!isClaimable[_msgSender()],"already claimed");
         bytes32 leaf = keccak256(abi.encode(_msgSender(),_amount));
         require(
