@@ -15,6 +15,8 @@ library Stake {
         uint256 lockedFrom;
         /// @dev locking period - until
         uint256 lockedUntil;
+          /// @dev indicates if the stake was created as a yield reward
+        bool isYield;
     }
 
     /**
@@ -37,12 +39,12 @@ library Stake {
     /**
      * @dev Minimum period that someone can lock a stake for.
      */
-    uint256 internal constant MIN_STAKE_PERIOD = 30 minutes;
+    uint256 internal constant MIN_STAKE_PERIOD = 30 days;
 
     /**
      * @dev Maximum period that someone can lock a stake for.
      */
-    uint256 internal constant MAX_STAKE_PERIOD = 1 hours;
+    uint256 internal constant MAX_STAKE_PERIOD = 365 days;
 
     /**
      * @dev Rewards per weight are stored multiplied by 1e20 as uint.

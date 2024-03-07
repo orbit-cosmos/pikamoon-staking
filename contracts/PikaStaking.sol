@@ -1,19 +1,20 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
-import {Pausable} from '@openzeppelin/contracts/utils/Pausable.sol';
-import {Ownable} from '@openzeppelin/contracts/access/Ownable.sol';
-import {IPikaMoon} from './interfaces/IPikaMoon.sol';
-import {Stake} from './libraries/Stake.sol';
-import {CommanErrors} from './libraries/Errors.sol';
-import './interfaces/IPikaStaking.sol';
-// import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+pragma solidity 0.8.20;
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {Context} from "@openzeppelin/contracts/utils/Context.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IPikaMoon} from "./interfaces/IPikaMoon.sol";
+import {Stake} from "./libraries/Stake.sol";
+import {CommanErrors} from "./libraries/Errors.sol";
+import "./interfaces/IPikaStaking.sol";
 
 // import "hardhat/console.sol";
 
 contract PikaStaking is Ownable, Pausable, IPikaStaking {
     using Stake for Stake.Data;
     using Stake for uint256;
-//   using SafeERC20 for IERC20;
+    using SafeERC20 for IPikaMoon;
     /// @dev Data structure representing token holder.
     struct User {
         /// @dev pending yield rewards to be claimed
@@ -31,6 +32,9 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
     /// @dev Note: stakes are different in duration and "weight" reflects that.
     uint256 public yieldRewardsPerWeight;
 
+    /// @dev Link to PIKA ERC20 Token instance.
+    address internal _pika;
+
     /**
      * @dev The yield is distributed proportionally to pool weights;
      *      total weight is here to help in determining the proportion.
@@ -40,7 +44,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
     /// @dev Timestamp of the last yield distribution event.
     uint256 public lastYieldDistribution;
 
-    /// @dev Link to the pool token instance, for example PIKA or PIKA/ETH pair.
+    /// @dev Link to the pool token instance, for example PIKA or PIKA/ETH pair LP token.
     address public poolToken;
 
     /**  @notice you can lock your tokens for a period between 1 and 12 months. 
@@ -54,12 +58,11 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
     uint256 public weight;
     /// @dev Used to calculate rewards, keeps track of the tokens weight locked in staking.
     uint256 public globalWeight;
-    /// @dev total pool token reserve
+    /// @dev total pool token reserve. PIKA or PIKA/ETH pair LP token.
     uint256 public poolTokenReserve;
 
     /**
      * @dev PIKA/second determines yield farming reward base
-     *      used by the yield pools controlled by the factory.
      */
     uint192 public pikaPerSecond;
 
@@ -86,92 +89,16 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
     /// @dev Token holder storage, maps token holder address to their data record.
     mapping(address => User) public users;
 
-    /**
-     * @dev Fired in _stake() and stakeAsPool() in PIKAPool contract.
-     * @param by address that executed the stake function (user or pool)
-     * @param from token holder address, the tokens will be returned to that address
-     * @param stakeId id of the new stake created
-     * @param value value of tokens staked
-     * @param lockUntil timestamp indicating when tokens should unlock (max 2 years)
-     */
-    event LogStake(address indexed by, address indexed from, uint256 stakeId, uint256 value, uint256 lockUntil);
-    /**
-     * @dev Fired in `_updateRewards()`.
-     *
-     * @param by an address which processed the rewards (staker or PIKA pool contract
-     *            in case of a multiple claim call)
-     * @param from an address which received the yield
-     * @param yieldValue value of yield processed
-     */
-    event LogUpdateRewards(address indexed by, address indexed from, uint256 yieldValue);
-
-    /**
-     * @dev Fired in `unstakeLocked()`.
-     *
-     * @param to address receiving the tokens (user)
-     * @param stakeId id value of the stake
-     * @param value number of tokens unstaked
-     */
-    event LogUnstakeLocked(address indexed to, uint256 stakeId, uint256 value);
-    /**
-     * @dev Fired in `updatePIKAPerSecond()`.
-     *
-     * @param by an address which executed an action
-     * @param newPIKAPerSecond new PIKA/second value
-     */
-    event LogUpdatePikaPerSecond(address indexed by, uint256 newPIKAPerSecond);
-    /**
-     * @dev Fired in `_sync()` and dependent functions (stake, unstake, etc.).
-     *
-     * @param by an address which performed an operation
-     * @param yieldRewardsPerWeight updated yield rewards per weight value
-     * @param lastYieldDistribution usually, current timestamp
-     */
-    event LogSync(address indexed by, uint256 yieldRewardsPerWeight, uint256 lastYieldDistribution);
-
-    /**
-     * @dev Fired in `updatePIKAPerSecond()`.
-     *
-     * @param by an address which executed an action
-     * @param newPikaPerSecond new PIKA/second value
-     */
-    event LogUpdatePIKAPerSecond(address indexed by, uint256 newPikaPerSecond);
-
-    /**
-     * @dev Fired in `_claimYieldRewards()`.
-     *
-     * @param by an address which claimed the rewards (staker or PIKA pool contract
-     *            in case of a multiple claim call)
-     * @param from an address which received the yield
-     * @param value value of yield paid
-     */
-    event LogClaimYieldRewards(address indexed by, address indexed from, uint256 value);
-    /**
-     * @dev Fired in `setEndTime()`.
-     *
-     * @param by an address which executed the action
-     * @param endTime new endTime value
-     */
-    event LogSetEndTime(address indexed by, uint32 endTime);
-
-    /**
-     * @dev Fired in `changePoolWeight()`.
-     *
-     * @param by an address which executed an action
-     * @param poolAddress deployed pool instance address
-     * @param weight new pool weight
-     */
-    event LogChangePoolWeight(address indexed by, address indexed poolAddress, uint256 weight);
-
-    constructor(address _poolToken) Ownable(msg.sender) {
+    constructor(address _poolToken) Ownable(_msgSender()) {
         if (_poolToken == address(0)) {
             revert CommanErrors.ZeroAddress();
         }
+        //PIKA or PIKA/ETH pair LP token address.
         poolToken = _poolToken;
-        // init the dependent internal state variables
+        // init the dependent state variables
         lastYieldDistribution = _now256();
         weight = 200; //(direct staking)200
-        pikaPerSecond = 0.01 ether;
+        pikaPerSecond = 0.0001 ether;
         secondsPerUpdate = 14 days;
         lastRatioUpdate = _now256();
         endTime = _now256() + (5 * 30 days); // 5 months
@@ -194,93 +121,106 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
 
         // validate the inputs
         if (_value == 0) revert CommanErrors.ZeroAmount();
-        if (!(_lockDuration >= Stake.MIN_STAKE_PERIOD && _lockDuration <= Stake.MAX_STAKE_PERIOD)) {
+        if (
+            !(_lockDuration >= Stake.MIN_STAKE_PERIOD &&
+                _lockDuration <= Stake.MAX_STAKE_PERIOD)
+        ) {
             revert CommanErrors.InvalidLockDuration();
         }
 
         // get a link to user data struct, we will write to it later
-        User storage user = users[msg.sender];
+        User storage user = users[_msgSender()];
         // update user state
-        _updateReward(msg.sender);
+        _updateReward(_msgSender());
         // calculates until when a stake is going to be locked
         uint256 lockUntil = _now256() + _lockDuration;
         // stake weight formula rewards for locking
-        uint256 stakeWeight = (((lockUntil - _now256()) * Stake.WEIGHT_MULTIPLIER) /
+        uint256 stakeWeight = (((lockUntil - _now256()) *
+            Stake.WEIGHT_MULTIPLIER) /
             Stake.MAX_STAKE_PERIOD +
             Stake.BASE_WEIGHT) * _value;
         // makes sure stakeWeight is valid
         assert(stakeWeight > 0);
         // create and save the stake (append it to stakes array)
-        Stake.Data memory userStake = Stake.Data({value: _value, lockedFrom: _now256(), lockedUntil: lockUntil});
+        Stake.Data memory userStake = Stake.Data({
+            value: _value,
+            lockedFrom: _now256(),
+            lockedUntil: lockUntil,
+            isYield: false
+        });
         // pushes new stake to `stakes` array
         user.stakes.push(userStake);
         // update user weight
         user.totalWeight += (stakeWeight);
-        // update global weight value and global pool token count
+        // update global weight value
         globalWeight += stakeWeight;
+        // update pool reserve
         poolTokenReserve += _value;
 
         // transfer `_value`
-        IPikaMoon(poolToken).transferFrom(msg.sender, address(this), _value);
+        IPikaMoon(poolToken).safeTransferFrom(
+            _msgSender(),
+            address(this),
+            _value
+        );
 
         // emits an event
-        emit LogStake(msg.sender, msg.sender, (user.stakes.length - 1), _value, lockUntil);
+        emit LogStake(
+            _msgSender(),
+            (user.stakes.length - 1),
+            _value,
+            lockUntil
+        );
     }
 
     /**
      * @dev Unstakes a stake that has been previously locked, and is now in an unlocked
-     *      state. Otherwise it transfers PIKA
-     *      from the contract balance.
+     *      state.
      *
      * @param _stakeId stake ID to unstake from, zero-indexed
-     * @param _value value of tokens to unstake
      */
-    function unstake(uint256 _stakeId, uint256 _value) external {
+    function unstake(uint256 _stakeId) external {
         // checks if the contract is in a paused state
         if (paused()) revert CommanErrors.ContractIsPaused();
 
-        // validate the inputs
-        if (_value == 0) revert CommanErrors.ZeroAmount();
-
         // get a link to user data struct, we will write to it later
-        User storage user = users[msg.sender];
+        User storage user = users[_msgSender()];
         // update user state
-        _updateReward(msg.sender);
+        _updateReward(_msgSender());
         // get a link to the corresponding stake, we may write to it later
         Stake.Data storage userStake = user.stakes[_stakeId];
         // checks if stake is unlocked already
-        if (!(_now256() > userStake.lockedUntil)) revert CommanErrors.StakingTimeNotFinishedYet();
+        if (!(_now256() > userStake.lockedUntil))
+            revert CommanErrors.StakingTimeNotFinishedYet();
 
         // we also save stakeValue for gasSavings
-        uint256 stakeValue = userStake.value;
-        // verify available balance
-        if (!(stakeValue >= _value)) revert CommanErrors.WrongUnStakeAmount();
+        (uint256 stakeValue, bool isYield) = (
+            userStake.value,
+            userStake.isYield
+        );
         // store stake weight
         uint256 previousWeight = userStake.weight();
-        // value used to save new weight after updates in storage
-        uint256 newWeight;
 
-        // update the stake, or delete it if its depleted
-        if (stakeValue - _value == 0) {
-            // deletes stake struct, no need to save new weight because it stays 0
-            delete user.stakes[_stakeId];
-        } else {
-            userStake.value -= _value;
-            // saves new weight to memory
-            newWeight = userStake.weight();
-        }
+        // deletes stake struct
+        delete user.stakes[_stakeId];
+
         // update user record
-        user.totalWeight = user.totalWeight - previousWeight + newWeight;
+        user.totalWeight = user.totalWeight - previousWeight;
         // update global weight variable
-        globalWeight = globalWeight - previousWeight + newWeight;
+        globalWeight = globalWeight - previousWeight;
         // update global pool token count
-        poolTokenReserve -= _value;
+        poolTokenReserve -= stakeValue;
 
-        // otherwise just return tokens back to holder
-        IPikaMoon(poolToken).transfer(msg.sender, _value);
-
+        // if the stake was created by the pool itself as a yield reward
+        if (isYield) {
+            // mint the yield via the factory
+            IPikaMoon(poolToken).mint(_msgSender(), stakeValue);
+        } else {
+            // otherwise just return tokens back to holder
+            IPikaMoon(poolToken).safeTransfer(_msgSender(), stakeValue);
+        }
         // emits an event
-        emit LogUnstakeLocked(msg.sender, _stakeId, _value);
+        emit LogUnstakeLocked(_msgSender(), _stakeId, stakeValue);
     }
 
     /**
@@ -289,7 +229,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
     function claimYieldRewards() external {
         // checks if the contract is in a paused state
         if (paused()) revert CommanErrors.ContractIsPaused();
-        address _staker = msg.sender;
+        address _staker = _msgSender();
         // update user state
         _updateReward(_staker);
         // get link to a user data structure, we will write into it later
@@ -302,9 +242,31 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         // clears user pending yield
         user.pendingYield = 0;
 
-        IPikaMoon(poolToken).mint(_staker, pendingYieldToClaim);
+        // calculate pending yield weight,
+        // 2e6 is the bonus weight when staking for 1 year
+        uint256 stakeWeight = pendingYieldToClaim *
+            Stake.YIELD_STAKE_WEIGHT_MULTIPLIER;
+
+        // if the pool is PIKA Pool - create new PIKA stake
+        // and save it - push it into stakes array
+        Stake.Data memory newStake = Stake.Data({
+            value: pendingYieldToClaim,
+            lockedFrom: _now256(),
+            lockedUntil: _now256() + Stake.MAX_STAKE_PERIOD, // staking yield for 1 year
+            isYield: true
+        });
+        // add memory stake to storage
+        user.stakes.push(newStake);
+        // updates total user weight with the newly created stake's weight
+        user.totalWeight += stakeWeight;
+
+        // update global variable
+        globalWeight += stakeWeight;
+        // update reserve count
+        poolTokenReserve += pendingYieldToClaim;
+
         // emits an event
-        emit LogClaimYieldRewards(msg.sender, _staker, pendingYieldToClaim);
+        emit LogClaimYieldRewards(_msgSender(), _staker, pendingYieldToClaim);
     }
 
     /**
@@ -322,7 +284,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         endTime = _endTime;
 
         // emits an event
-        emit LogSetEndTime(msg.sender, _endTime);
+        emit LogSetEndTime(_msgSender(), _endTime);
     }
 
     /**
@@ -339,7 +301,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         weight = _weight;
 
         // emits an event
-        emit LogChangePoolWeight(msg.sender, address(this), weight);
+        emit LogChangePoolWeight(_msgSender(), address(this), weight);
     }
 
     /**
@@ -348,7 +310,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
      */
     function pause(bool _shouldPause) external onlyOwner {
         // checks bool input and pause/unpause the contract depending on
-        // msg.sender's request
+        // _msgSender()'s request
         if (_shouldPause) {
             _pause();
         } else {
@@ -373,7 +335,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         lastRatioUpdate = _now256();
 
         // emits an event
-        emit LogUpdatePikaPerSecond(msg.sender, pikaPerSecond);
+        emit LogUpdatePikaPerSecond(_msgSender(), pikaPerSecond);
     }
 
     /**
@@ -407,14 +369,19 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         uint256 secondsPassed = currentTimestamp - lastYieldDistribution;
 
         // calculate the reward
-        uint256 pikaReward = (secondsPassed * pikaPerSecond * weight) / totalWeight;
+        uint256 pikaReward = (secondsPassed * pikaPerSecond * weight) /
+            totalWeight;
 
         // update rewards per weight and `lastYieldDistribution`
         yieldRewardsPerWeight += pikaReward.getRewardPerWeight(globalWeight);
         lastYieldDistribution = currentTimestamp;
 
         // emits an event
-        emit LogSync(msg.sender, yieldRewardsPerWeight, lastYieldDistribution);
+        emit LogSync(
+            _msgSender(),
+            yieldRewardsPerWeight,
+            lastYieldDistribution
+        );
     }
 
     /**
@@ -435,7 +402,10 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         uint256 userTotalWeight = user.totalWeight;
 
         // calculates pending yield to be added
-        uint256 pendingYield = userTotalWeight.earned(yieldRewardsPerWeight, user.yieldRewardsPerWeightPaid);
+        uint256 pendingYield = userTotalWeight.earned(
+            yieldRewardsPerWeight,
+            user.yieldRewardsPerWeightPaid
+        );
         // calculates pending reenue distribution to be added
         // increases stored user.pendingYield with value returned
         user.pendingYield += pendingYield;
@@ -445,7 +415,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         user.yieldRewardsPerWeightPaid = yieldRewardsPerWeight;
 
         // emits an event
-        emit LogUpdateRewards(msg.sender, _staker, pendingYield);
+        emit LogUpdateRewards(_msgSender(), _staker, pendingYield);
     }
 
     function _now256() internal view returns (uint256) {
@@ -480,7 +450,9 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
      *
      * @param _staker an address to calculate yield rewards value for
      */
-    function pendingRewards(address _staker) external view returns (uint256 pendingYield) {
+    function pendingRewards(
+        address _staker
+    ) external view returns (uint256 pendingYield) {
         if (_staker == address(0)) revert CommanErrors.ZeroAddress();
         // `newYieldRewardsPerWeight` will be the stored or recalculated value for `yieldRewardsPerWeight`
         uint256 newYieldRewardsPerWeight;
@@ -498,17 +470,23 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
             uint256 multiplier = _now256() > endTime
                 ? endTime - _lastYieldDistribution
                 : _now256() - _lastYieldDistribution;
-            uint256 pikaRewards = (multiplier * weight * pikaPerSecond) / totalWeight;
+            uint256 pikaRewards = (multiplier * weight * pikaPerSecond) /
+                totalWeight;
 
             // recalculated value for `yieldRewardsPerWeight`
-            newYieldRewardsPerWeight = pikaRewards.getRewardPerWeight((globalWeight)) + yieldRewardsPerWeight;
+            newYieldRewardsPerWeight =
+                pikaRewards.getRewardPerWeight((globalWeight)) +
+                yieldRewardsPerWeight;
         } else {
             // if smart contract state is up to date, we don't recalculate
             newYieldRewardsPerWeight = yieldRewardsPerWeight;
         }
 
         pendingYield =
-            (userWeight).earned(newYieldRewardsPerWeight, user.yieldRewardsPerWeightPaid) +
+            (userWeight).earned(
+                newYieldRewardsPerWeight,
+                user.yieldRewardsPerWeightPaid
+            ) +
             user.pendingYield;
     }
 
@@ -552,7 +530,10 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
      * @param _stakeId zero-indexed stake ID for the address specified
      * @return stake info as Stake structure
      */
-    function getStake(address _user, uint256 _stakeId) external view returns (Stake.Data memory) {
+    function getStake(
+        address _user,
+        uint256 _stakeId
+    ) external view returns (Stake.Data memory) {
         // read stake at specified index and return
         return users[_user].stakes[_stakeId];
     }
