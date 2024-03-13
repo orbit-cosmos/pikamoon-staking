@@ -14,6 +14,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
     using Stake for Stake.Data;
     using Stake for uint256;
     using SafeERC20 for IPikaMoon;
+
     /// @dev Data structure representing token holder.
     struct User {
         /// @dev pending yield rewards to be claimed
@@ -85,7 +86,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
     /// @dev Token holder storage, maps token holder address to their data record.
     mapping(address => User) public users;
 
-    constructor(address _poolToken) Ownable(_msgSender()) {
+    constructor(address _poolToken,uint256 _weight) Ownable(_msgSender()) {
         if (_poolToken == address(0)) {
             revert CommanErrors.ZeroAddress();
         }
@@ -93,7 +94,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         poolToken = _poolToken;
         // init the dependent state variables
         lastYieldDistribution = _now256();
-        weight = 200; //(direct staking)200
+        weight = _weight; //(direct staking)200
         pikaPerSecond = 0.0099665 gwei;
         secondsPerUpdate = 14 days;
         lastRatioUpdate = _now256();
@@ -216,7 +217,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
             IPikaMoon(poolToken).safeTransfer(_msgSender(), stakeValue);
         }
         // emits an event
-        emit LogUnstakeLocked(_msgSender(), _stakeId, stakeValue);
+        emit LogUnstake(_msgSender(), _stakeId, stakeValue);
     }
 
     /**
@@ -393,6 +394,22 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
     }
 
     /**
+     * @notice Service function to synchronize pool state with current time.
+     *
+     * @dev Can be executed by anyone at any time, but has an effect only when
+     *      at least one second passes between synchronizations.
+     * @dev Executed internally when staking, unstaking, processing rewards in order
+     *      for calculations to be correct and to reflect state progress of the contract.
+     * @dev When timing conditions are not met (executed too frequently, or after factory
+     *      end time), function doesn't throw and exits silently.
+     */
+    function sync() external {
+        // checks if the contract is in a paused state
+        if (paused()) revert CommanErrors.ContractIsPaused();
+        // calls internal function
+        _sync();
+    }
+    /**
      * @dev Must be called every time user.totalWeight is changed.
      * @dev Syncs the global pool state, processes the user pending rewards (if any),
      *      and updates check points values stored in the user struct.
@@ -430,7 +447,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
      *
      * @param _endTime new end time value to be stored
      */
-    function setEndTime(uint32 _endTime) external onlyOwner {
+    function setEndTime(uint256 _endTime) external onlyOwner {
         // checks if _endTime is a timestap after the last time that
         // PIKA/second has been updated
         if (!(_endTime > lastRatioUpdate)) {
@@ -465,8 +482,6 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
      * @param _shouldPause whether the contract should be paused/unpausd
      */
     function pause(bool _shouldPause) external onlyOwner {
-        // checks bool input and pause/unpause the contract depending on
-        // _msgSender()'s request
         if (_shouldPause) {
             _pause();
         } else {
@@ -497,7 +512,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         for (uint256 i; i < len; ) {
             balance += user.stakes[i].value;
             unchecked {
-                ++i;
+                i = i + 1;
             }
         }
     }

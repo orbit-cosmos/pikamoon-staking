@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.20;
+pragma solidity 0.8.20;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ERC20Capped} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Capped.sol";
-// import "hardhat/console.sol";
 import {IPikaMoon, IERC20} from "./interfaces/IPikaMoon.sol";
 import {CommanErrors} from "./libraries/Errors.sol";
 import "./interfaces/IUniswapV2Router02.sol";
+// import "hardhat/console.sol";
 
 /**
  * @title PikaMoon Token

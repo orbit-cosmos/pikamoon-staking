@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.20;
+pragma solidity 0.8.20;
 import '../libraries/Stake.sol';
 
 interface IPikaStaking {
@@ -14,15 +14,15 @@ interface IPikaStaking {
 
     function updatePIKAPerSecond() external;
 
+    function sync() external;
+
     /* ========== RESTRICTED FUNCTIONS ========== */
 
-    function setEndTime(uint32 _endTime) external;
+    function setEndTime(uint256 _endTime) external;
 
     function changePoolWeight(uint256 _weight) external;
 
     function pause(bool _shouldPause) external;
-
-
 
     /* ========== READ FUNCTIONS ========== */
 
@@ -57,13 +57,13 @@ interface IPikaStaking {
     event LogUpdateRewards(address indexed by, address indexed from, uint256 yieldValue);
 
     /**
-     * @dev Fired in `unstakeLocked()`.
+     * @dev Fired in `unstake()`.
      *
      * @param to address receiving the tokens (user)
      * @param stakeId id value of the stake
      * @param value number of tokens unstaked
      */
-    event LogUnstakeLocked(address indexed to, uint256 stakeId, uint256 value);
+    event LogUnstake(address indexed to, uint256 stakeId, uint256 value);
     /**
      * @dev Fired in `updatePIKAPerSecond()`.
      *
@@ -103,7 +103,7 @@ interface IPikaStaking {
      * @param by an address which executed the action
      * @param endTime new endTime value
      */
-    event LogSetEndTime(address indexed by, uint32 endTime);
+    event LogSetEndTime(address indexed by, uint256 endTime);
 
     /**
      * @dev Fired in `changePoolWeight()`.
