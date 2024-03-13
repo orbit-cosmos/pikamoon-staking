@@ -2,12 +2,11 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { PikaMoon, PikaStaking } from "../typechain-types";
-import { Addressable } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
 const toWei = (value: number) => ethers.parseEther(value.toString());
-const fromWei = (value: number) => ethers.formatEther(value);
-const now = () => Math.floor(Date.now() / 1000);
+// const fromWei = (value: number) => ethers.formatEther(value);
+// const now = () => Math.floor(Date.now() / 1000);
 describe("Pika Staking contract testcases", function () {
   async function deployICOFixture() {
     const [owner, otherAccount, account2] = await ethers.getSigners();

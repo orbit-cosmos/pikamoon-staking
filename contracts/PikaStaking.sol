@@ -8,7 +8,6 @@ import {IPikaMoon} from "./interfaces/IPikaMoon.sol";
 import {Stake} from "./libraries/Stake.sol";
 import {CommanErrors} from "./libraries/Errors.sol";
 import "./interfaces/IPikaStaking.sol";
-
 // import "hardhat/console.sol";
 
 contract PikaStaking is Ownable, Pausable, IPikaStaking {
@@ -28,12 +27,9 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
     }
 
     /// @dev Used to calculate yield rewards.
-    /// @dev This value is different from "reward per token" used in flash pool.
     /// @dev Note: stakes are different in duration and "weight" reflects that.
+    /// @dev updates in the _sync function
     uint256 public yieldRewardsPerWeight;
-
-    /// @dev Link to PIKA ERC20 Token instance.
-    address internal _pika;
 
     /**
      * @dev The yield is distributed proportionally to pool weights;
@@ -98,7 +94,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         // init the dependent state variables
         lastYieldDistribution = _now256();
         weight = 200; //(direct staking)200
-        pikaPerSecond = 0.0001 ether;
+        pikaPerSecond = 0.0099665 gwei;
         secondsPerUpdate = 14 days;
         lastRatioUpdate = _now256();
         endTime = _now256() + (5 * 30 days); // 5 months
@@ -134,7 +130,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         _updateReward(_msgSender());
         // calculates until when a stake is going to be locked
         uint256 lockUntil = _now256() + _lockDuration;
-        // stake weight formula rewards for locking
+        // calculate stake weight. same as weight function in stake.sol library
         uint256 stakeWeight = (((lockUntil - _now256()) *
             Stake.WEIGHT_MULTIPLIER) /
             Stake.MAX_STAKE_PERIOD +
@@ -157,7 +153,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         // update pool reserve
         poolTokenReserve += _value;
 
-        // transfer `_value`
+        // transfer `_value` to this contract
         IPikaMoon(poolToken).safeTransferFrom(
             _msgSender(),
             address(this),
@@ -270,6 +266,166 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
     }
 
     /**
+     * @notice Calculates current yield rewards value available for address specified.
+     * @param _staker an address to calculate yield rewards value for
+     */
+    function pendingRewards(
+        address _staker
+    ) external view returns (uint256 pendingYield) {
+        if (_staker == address(0)) revert CommanErrors.ZeroAddress();
+        // `newYieldRewardsPerWeight` will be the stored or recalculated value for `yieldRewardsPerWeight`
+        uint256 newYieldRewardsPerWeight;
+        // gas savings
+        uint256 _lastYieldDistribution = lastYieldDistribution;
+
+        // based on the rewards per weight value, calculate pending rewards;
+        User memory user = users[_staker];
+        // initializes both variables from one storage slot
+        uint256 userWeight = user.totalWeight;
+
+        // if smart contract state was not updated recently, `yieldRewardsPerWeight` value
+        // is outdated and we need to recalculate it in order to calculate pending rewards correctly
+        if (_now256() > _lastYieldDistribution && globalWeight != 0) {
+            uint256 multiplier = _now256() > endTime
+                ? endTime - _lastYieldDistribution
+                : _now256() - _lastYieldDistribution;
+            uint256 pikaRewards = (multiplier * pikaPerSecond * weight ) /
+                totalWeight;
+
+            // recalculated value for `yieldRewardsPerWeight`
+            newYieldRewardsPerWeight =
+                pikaRewards.getRewardPerWeight((globalWeight)) +
+                yieldRewardsPerWeight;
+        } else {
+            // if smart contract state is up to date, we don't recalculate
+            newYieldRewardsPerWeight = yieldRewardsPerWeight;
+        }
+
+        pendingYield =
+            (userWeight).earned(
+                newYieldRewardsPerWeight,
+                user.yieldRewardsPerWeightPaid
+            ) +
+            user.pendingYield;
+    }
+
+    /**
+     * @dev Verifies if `secondsPerUpdate` has passed since last PIKA/second
+     *      ratio update and if PIKA/second reward can be decreased by 3%.
+     *
+     * @return true if enough time has passed and `updatePIKAPerSecond` can be executed.
+     */
+    function shouldUpdateRatio() public view returns (bool) {
+        // if yield farming period has ended
+        if (_now256() > endTime) {
+            // PIKA/second reward cannot be updated anymore
+            return false;
+        }
+
+        // check if seconds/update have passed since last update
+        return _now256() >= lastRatioUpdate + secondsPerUpdate;
+    }
+
+    /**
+     * @notice Decreases PIKA/second reward by 3%, can be executed
+     *      no more than once per `secondsPerUpdate` seconds.
+     */
+    function updatePIKAPerSecond() public {
+        // checks if ratio can be updated i.e. if seconds/update have passed
+        if (!shouldUpdateRatio()) revert CommanErrors.CanNotUpdateAtTheMoment();
+
+        // decreases PIKA/second reward by 3%.
+        // To achieve that we multiply by 97 and then
+        // divide by 100
+        pikaPerSecond = (pikaPerSecond * 97) / 100;
+
+        // set current timestamp as the last ratio update timestamp
+        lastRatioUpdate = _now256();
+
+        // emits an event
+        emit LogUpdatePikaPerSecond(_msgSender(), pikaPerSecond);
+    }
+
+    /**
+     *
+     * @dev Updates smart contract state (`yieldRewardsPerWeight`, `lastYieldDistribution`),
+     *      updates state via `updatePIKAPerSecond`
+     */
+    function _sync() internal {
+        // update PIKA per second value
+        if (shouldUpdateRatio()) {
+            updatePIKAPerSecond();
+        }
+
+        // check bound conditions and if these are not met -
+        // exit silently, without emitting an event
+        if (lastYieldDistribution >= endTime) {
+            return;
+        }
+        if (_now256() <= lastYieldDistribution) {
+            return;
+        }
+        // if locking weight is zero - update only `lastYieldDistribution` and exit
+        if (globalWeight == 0) {
+            lastYieldDistribution = _now256();
+            return;
+        }
+
+        // to calculate the reward we need to know how many seconds passed, and reward per second
+        uint256 currentTimestamp = _now256() > endTime ? endTime : _now256();
+        uint256 secondsPassed = currentTimestamp - lastYieldDistribution;
+
+        // calculate the reward
+        uint256 pikaReward = (secondsPassed * pikaPerSecond * weight) /
+            totalWeight;
+
+
+        // update rewards per weight and `lastYieldDistribution`
+        yieldRewardsPerWeight += pikaReward.getRewardPerWeight(globalWeight);
+        lastYieldDistribution = currentTimestamp;
+
+        // emits an event
+        emit LogSync(
+            _msgSender(),
+            yieldRewardsPerWeight,
+            lastYieldDistribution
+        );
+    }
+
+    /**
+     * @dev Must be called every time user.totalWeight is changed.
+     * @dev Syncs the global pool state, processes the user pending rewards (if any),
+     *      and updates check points values stored in the user struct.
+     * @dev If user is coming from v1 pool, it expects to receive this v1 user weight
+     *      to include in rewards calculations.
+     *
+     * @param _staker user address
+     */
+    function _updateReward(address _staker) internal {
+        // update pool state
+        _sync();
+        // gets storage reference to the user
+        User storage user = users[_staker];
+        // gas savings
+        uint256 userTotalWeight = user.totalWeight;
+
+        // calculates pending yield to be added
+        uint256 pendingYield = userTotalWeight.earned(
+            yieldRewardsPerWeight,
+            user.yieldRewardsPerWeightPaid
+        );
+        // calculates pending reenue distribution to be added
+        // increases stored user.pendingYield with value returned
+        user.pendingYield += pendingYield;
+
+        // updates user checkpoint values for future calculations
+        user.yieldRewardsPerWeightPaid = yieldRewardsPerWeight;
+
+        // emits an event
+        emit LogUpdateRewards(_msgSender(), _staker, pendingYield);
+    }
+
+    /**
      * @dev Updates yield generation ending timestamp.
      *
      * @param _endTime new end time value to be stored
@@ -318,176 +474,9 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         }
     }
 
-    /**
-     * @notice Decreases PIKA/second reward by 3%, can be executed
-     *      no more than once per `secondsPerUpdate` seconds.
-     */
-    function updatePIKAPerSecond() public {
-        // checks if ratio can be updated i.e. if seconds/update have passed
-        if (!shouldUpdateRatio()) revert CommanErrors.CanNotUpdateAtTheMoment();
-
-        // decreases PIKA/second reward by 3%.
-        // To achieve that we multiply by 97 and then
-        // divide by 100
-        pikaPerSecond = (pikaPerSecond * 97) / 100;
-
-        // set current timestamp as the last ratio update timestamp
-        lastRatioUpdate = _now256();
-
-        // emits an event
-        emit LogUpdatePikaPerSecond(_msgSender(), pikaPerSecond);
-    }
-
-    /**
-     * @dev Used internally, mostly by children implementations, see `sync()`.
-     *
-     * @dev Updates smart contract state (`yieldRewardsPerWeight`, `lastYieldDistribution`),
-     *      updates factory state via `updatePIKAPerSecond`
-     */
-    function _sync() internal {
-        // update PIKA per second value in factory if required
-        if (shouldUpdateRatio()) {
-            updatePIKAPerSecond();
-        }
-
-        // check bound conditions and if these are not met -
-        // exit silently, without emitting an event
-        if (lastYieldDistribution >= endTime) {
-            return;
-        }
-        if (_now256() <= lastYieldDistribution) {
-            return;
-        }
-        // if locking weight is zero - update only `lastYieldDistribution` and exit
-        if (globalWeight == 0) {
-            lastYieldDistribution = _now256();
-            return;
-        }
-
-        // to calculate the reward we need to know how many seconds passed, and reward per second
-        uint256 currentTimestamp = _now256() > endTime ? endTime : _now256();
-        uint256 secondsPassed = currentTimestamp - lastYieldDistribution;
-
-        // calculate the reward
-        uint256 pikaReward = (secondsPassed * pikaPerSecond * weight) /
-            totalWeight;
-
-        // update rewards per weight and `lastYieldDistribution`
-        yieldRewardsPerWeight += pikaReward.getRewardPerWeight(globalWeight);
-        lastYieldDistribution = currentTimestamp;
-
-        // emits an event
-        emit LogSync(
-            _msgSender(),
-            yieldRewardsPerWeight,
-            lastYieldDistribution
-        );
-    }
-
-    /**
-     * @dev Must be called every time user.totalWeight is changed.
-     * @dev Syncs the global pool state, processes the user pending rewards (if any),
-     *      and updates check points values stored in the user struct.
-     * @dev If user is coming from v1 pool, it expects to receive this v1 user weight
-     *      to include in rewards calculations.
-     *
-     * @param _staker user address
-     */
-    function _updateReward(address _staker) internal {
-        // update pool state
-        _sync();
-        // gets storage reference to the user
-        User storage user = users[_staker];
-        // gas savings
-        uint256 userTotalWeight = user.totalWeight;
-
-        // calculates pending yield to be added
-        uint256 pendingYield = userTotalWeight.earned(
-            yieldRewardsPerWeight,
-            user.yieldRewardsPerWeightPaid
-        );
-        // calculates pending reenue distribution to be added
-        // increases stored user.pendingYield with value returned
-        user.pendingYield += pendingYield;
-        // increases stored user.pendingRevDis with value returned
-
-        // updates user checkpoint values for future calculations
-        user.yieldRewardsPerWeightPaid = yieldRewardsPerWeight;
-
-        // emits an event
-        emit LogUpdateRewards(_msgSender(), _staker, pendingYield);
-    }
-
     function _now256() internal view returns (uint256) {
         // return current block timestamp
         return block.timestamp;
-    }
-
-    /**
-     * @dev Verifies if `secondsPerUpdate` has passed since last PIKA/second
-     *      ratio update and if PIKA/second reward can be decreased by 3%.
-     *
-     * @return true if enough time has passed and `updatePIKAPerSecond` can be executed.
-     */
-    function shouldUpdateRatio() public view returns (bool) {
-        // if yield farming period has ended
-        if (_now256() > endTime) {
-            // PIKA/second reward cannot be updated anymore
-            return false;
-        }
-
-        // check if seconds/update have passed since last update
-        return _now256() >= lastRatioUpdate + secondsPerUpdate;
-    }
-
-    /**
-     * @notice Calculates current yield rewards value available for address specified.
-     *
-     * @dev See `_pendingRewards()` for further details.
-     *
-     * @dev External `pendingRewards()` returns pendingYield and pendingRevDis
-     *         accumulated with already stored user.pendingYield and user.pendingRevDis.
-     *
-     * @param _staker an address to calculate yield rewards value for
-     */
-    function pendingRewards(
-        address _staker
-    ) external view returns (uint256 pendingYield) {
-        if (_staker == address(0)) revert CommanErrors.ZeroAddress();
-        // `newYieldRewardsPerWeight` will be the stored or recalculated value for `yieldRewardsPerWeight`
-        uint256 newYieldRewardsPerWeight;
-        // gas savings
-        uint256 _lastYieldDistribution = lastYieldDistribution;
-
-        // based on the rewards per weight value, calculate pending rewards;
-        User storage user = users[_staker];
-        // initializes both variables from one storage slot
-        uint256 userWeight = user.totalWeight;
-
-        // if smart contract state was not updated recently, `yieldRewardsPerWeight` value
-        // is outdated and we need to recalculate it in order to calculate pending rewards correctly
-        if (_now256() > _lastYieldDistribution && globalWeight != 0) {
-            uint256 multiplier = _now256() > endTime
-                ? endTime - _lastYieldDistribution
-                : _now256() - _lastYieldDistribution;
-            uint256 pikaRewards = (multiplier * weight * pikaPerSecond) /
-                totalWeight;
-
-            // recalculated value for `yieldRewardsPerWeight`
-            newYieldRewardsPerWeight =
-                pikaRewards.getRewardPerWeight((globalWeight)) +
-                yieldRewardsPerWeight;
-        } else {
-            // if smart contract state is up to date, we don't recalculate
-            newYieldRewardsPerWeight = yieldRewardsPerWeight;
-        }
-
-        pendingYield =
-            (userWeight).earned(
-                newYieldRewardsPerWeight,
-                user.yieldRewardsPerWeightPaid
-            ) +
-            user.pendingYield;
     }
 
     /**
@@ -502,9 +491,14 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
     function balanceOf(address _user) external view returns (uint256 balance) {
         // gets storage pointer to _user
         User memory user = users[_user];
+        // calculate length
+        uint256 len = user.stakes.length;
         // loops over each user stake and adds to the total balance.
-        for (uint256 i = 0; i < user.stakes.length; i++) {
+        for (uint256 i; i < len; ) {
             balance += user.stakes[i].value;
+            unchecked {
+                ++i;
+            }
         }
     }
 

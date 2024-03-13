@@ -3,11 +3,18 @@ pragma solidity ^0.8.20;
 import '../libraries/Stake.sol';
 
 interface IPikaStaking {
+
+    /* ========== MUTATIVE FUNCTIONS ========== */
+
     function stake(uint256 _value, uint256 _lockDuration) external;
 
     function unstake(uint256 _stakeId) external;
 
     function claimYieldRewards() external;
+
+    function updatePIKAPerSecond() external;
+
+    /* ========== RESTRICTED FUNCTIONS ========== */
 
     function setEndTime(uint32 _endTime) external;
 
@@ -15,7 +22,9 @@ interface IPikaStaking {
 
     function pause(bool _shouldPause) external;
 
-    function updatePIKAPerSecond() external;
+
+
+    /* ========== READ FUNCTIONS ========== */
 
     function shouldUpdateRatio() external view returns (bool);
 
@@ -26,7 +35,10 @@ interface IPikaStaking {
     function getStakesLength(address _user) external view returns (uint256);
 
     function getStake(address _user, uint256 _stakeId) external view returns (Stake.Data memory);
-       /**
+
+    /* ========== EVENTS ========== */
+
+    /**
      * @dev Fired in _stake() and stakeAsPool() in PIKAPool contract.
      * @param from token holder address, the tokens will be returned to that address
      * @param stakeId id of the new stake created
