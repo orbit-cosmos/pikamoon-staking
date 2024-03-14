@@ -7,7 +7,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IPikaMoon} from "./interfaces/IPikaMoon.sol";
 import {Stake} from "./libraries/Stake.sol";
 import {CommanErrors} from "./libraries/Errors.sol";
-import "./interfaces/IPikaStaking.sol";
+import {IPikaStaking} from "./interfaces/IPikaStaking.sol";
 // import "hardhat/console.sol";
 
 contract PikaStaking is Ownable, Pausable, IPikaStaking {
@@ -45,13 +45,12 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
     address public poolToken;
 
     /**  @notice you can lock your tokens for a period between 1 and 12 months. 
-    This changes your token weight. By increasing the duration of your lock, 
-    you will increase the token weight of the locked tokens. 
-    The maximum weight of a locked token is 2 , 
-    which occurs when you lock for a period of 12 months.
-    
-    @dev Pool weight, initial values are 200 for PIKA pool and 800 for PIKA/ETH.
-    */
+     * This changes your token weight. By increasing the duration of your lock, 
+     * you will increase the token weight of the locked tokens. 
+     * The maximum weight of a locked token is 2 , 
+     * which occurs when you lock for a period of 12 months.
+     * @dev Pool weight, initial values are 200 for PIKA pool and 800 for PIKA/ETH.
+     */
     uint256 public weight;
     /// @dev Used to calculate rewards, keeps track of the tokens weight locked in staking.
     uint256 public globalWeight;
@@ -61,7 +60,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
     /**
      * @dev PIKA/second determines yield farming reward base
      */
-    uint192 public pikaPerSecond;
+    uint256 public pikaPerSecond;
 
     /**
      * @dev PIKA/second decreases by 3% every seconds/update
