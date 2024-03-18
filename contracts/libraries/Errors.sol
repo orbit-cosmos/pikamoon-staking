@@ -6,7 +6,7 @@ pragma solidity 0.8.20;
  * @notice Pre-defined errors instead of string error messages to reduce gas costs.
  */
 
-library CommanErrors {
+library CommonErrors {
     error ZeroAmount();
     error TransferFailed();
     error ZeroAddress();
@@ -21,4 +21,5 @@ library CommanErrors {
     error WrongUnStakeAmount();
     error WrongEndTime();
     error CanNotUpdateAtTheMoment();
+    error ContractIsOutOfRewards();
 }

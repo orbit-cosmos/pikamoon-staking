@@ -397,7 +397,7 @@ _Function to burn existing tokens from a specified owner's balance._
 | owner | address | The address from which the tokens are burned. |
 | amount | uint256 | The amount of tokens to be burned. |
 
-## CommanErrors
+## CommonErrors
 
 _This smart contract defines custom errors that can be thrown during specific conditions in other contracts._
 

@@ -10,7 +10,7 @@ interface IPikaStaking {
 
     function unstake(uint256 _stakeId) external;
 
-    function claimYieldRewards() external;
+    function claimRewards() external;
 
     function updatePIKAPerSecond() external;
 
@@ -96,7 +96,7 @@ interface IPikaStaking {
      * @param from an address which received the yield
      * @param value value of yield paid
      */
-    event LogClaimYieldRewards(address indexed by, address indexed from, uint256 value);
+    event LogClaimRewards(address indexed by, address indexed from, uint256 value);
     /**
      * @dev Fired in `setEndTime()`.
      *

@@ -5,7 +5,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ERC20Capped} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Capped.sol";
 import {IPikaMoon, IERC20} from "./interfaces/IPikaMoon.sol";
-import {CommanErrors} from "./libraries/Errors.sol";
+import {CommonErrors} from "./libraries/Errors.sol";
 import "./interfaces/IUniswapV2Router02.sol";
 // import "hardhat/console.sol";
 
@@ -46,10 +46,10 @@ contract PikaMoon is ERC20Capped, AccessControl, IPikaMoon {
         _setRoleAdmin(OWNER_ROLE, OWNER_ROLE);
         // check for zero adderss
         if (_ecosystemdevelopment == address(0)) {
-            revert CommanErrors.ZeroAddress();
+            revert CommonErrors.ZeroAddress();
         }
         if (_marketing == address(0)) {
-            revert CommanErrors.ZeroAddress();
+            revert CommonErrors.ZeroAddress();
         }
         //set marketing and ecosystem wallet
         ecoSystemWallet = _ecosystemdevelopment;
@@ -121,7 +121,7 @@ contract PikaMoon is ERC20Capped, AccessControl, IPikaMoon {
         address _ecoSystemWallet
     ) external onlyRole(OWNER_ROLE) {
         if (_ecoSystemWallet == address(0)) {
-            revert CommanErrors.ZeroAddress();
+            revert CommonErrors.ZeroAddress();
         }
         assembly {
             sstore(ecoSystemWallet.slot, _ecoSystemWallet)
@@ -136,7 +136,7 @@ contract PikaMoon is ERC20Capped, AccessControl, IPikaMoon {
         address _marketing
     ) external onlyRole(OWNER_ROLE) {
         if (_marketing == address(0)) {
-            revert CommanErrors.ZeroAddress();
+            revert CommonErrors.ZeroAddress();
         }
         assembly {
             sstore(marketingWallet.slot, _marketing)
