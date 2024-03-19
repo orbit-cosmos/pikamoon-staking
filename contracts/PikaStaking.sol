@@ -8,7 +8,6 @@ import {IPikaMoon} from "./interfaces/IPikaMoon.sol";
 import {Stake} from "./libraries/Stake.sol";
 import {CommonErrors} from "./libraries/Errors.sol";
 import {IPikaStaking} from "./interfaces/IPikaStaking.sol";
-
 // import "hardhat/console.sol";
 
 contract PikaStaking is Ownable, Pausable, IPikaStaking {
@@ -19,7 +18,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
     /// @dev Data structure representing token holder.
     struct User {
         /// @dev pending rewards rewards to be claimed
-        uint256 rewards;
+        uint256 pendingRewards;
         /// @dev Total weight
         uint256 totalWeight;
         /// @dev Checkpoint variable for rewards calculation
@@ -45,6 +44,10 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
     /// @dev Link to the pool token instance, for example PIKA or PIKA/ETH pair LP token.
     address public poolToken;
 
+
+    /// @dev staking Reward Allocation Pool address 
+    address public stakingRewardAddress;
+
     /**  @notice you can lock your tokens for a period between 1 and 12 months.
      * This changes your token weight. By increasing the duration of your lock,
      * you will increase the token weight of the locked tokens.
@@ -56,7 +59,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
     /// @dev Used to calculate rewards, keeps track of the tokens weight locked in staking.
     uint256 public globalWeight;
     /// @dev total pool token reserve. PIKA or PIKA/ETH pair LP token.
-    uint256 public totalTokenLock;
+    uint256 public totalTokenStaked;
 
     /**
      * @dev PIKA/second determines rewards farming reward base
@@ -116,8 +119,10 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         // checks if the contract is in a paused state
         if (paused()) revert CommonErrors.ContractIsPaused();
 
-        // validate the inputs
+        // validate the _value
         if (_value == 0) revert CommonErrors.ZeroAmount();
+
+        // validate the _lockDuration
         if (
             !(_lockDuration >= Stake.MIN_STAKE_PERIOD &&
                 _lockDuration <= Stake.MAX_STAKE_PERIOD)
@@ -127,10 +132,13 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
 
         // get a link to user data struct, we will write to it later
         User storage user = users[_msgSender()];
+        
         // update user state
         _updateReward(_msgSender());
+        
         // calculates until when a stake is going to be locked
         uint256 lockUntil = _now256() + _lockDuration;
+        
         // calculate stake weight. same as weight function in stake.sol library
         uint256 stakeWeight = (((lockUntil - _now256()) *
             Stake.WEIGHT_MULTIPLIER) /
@@ -143,17 +151,20 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         Stake.Data memory userStake = Stake.Data({
             value: _value,
             lockedFrom: _now256(),
-            lockedUntil: lockUntil,
-            isYield: false
+            lockedUntil: lockUntil
         });
+        
         // pushes new stake to `stakes` array
         user.stakes.push(userStake);
+        
         // update user weight
         user.totalWeight += (stakeWeight);
+        
         // update global weight value
         globalWeight += stakeWeight;
+        
         // update pool reserve
-        totalTokenLock += _value;
+        totalTokenStaked += _value;
 
         // transfer `_value` to this contract
         IPikaMoon(poolToken).safeTransferFrom(
@@ -183,19 +194,20 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
 
         // get a link to user data struct, we will write to it later
         User storage user = users[_msgSender()];
+
         // update user state
         _updateReward(_msgSender());
+        
         // get a link to the corresponding stake, we may write to it later
         Stake.Data storage userStake = user.stakes[_stakeId];
+        
         // checks if stake is unlocked already
         if (!(_now256() > userStake.lockedUntil))
             revert CommonErrors.StakingTimeNotFinishedYet();
 
-        // we also save stakeValue for gasSavings
-        (uint256 stakeValue, bool isYield) = (
-            userStake.value,
-            userStake.isYield
-        );
+         // save gas by caching userStake.value
+        uint256 stakeValue = userStake.value;
+
         // store stake weight
         uint256 previousWeight = userStake.weight();
 
@@ -204,18 +216,16 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
 
         // update user record
         user.totalWeight = user.totalWeight - previousWeight;
+        
         // update global weight variable
         globalWeight = globalWeight - previousWeight;
+        
         // update global pool token count
-        totalTokenLock -= stakeValue;
+        totalTokenStaked -= stakeValue;
 
-        // if the stake was created by the pool itself as a rewards reward
-        if (isYield) {
-            IPikaMoon(poolToken).mint(_msgSender(), stakeValue);
-        } else {
-            // otherwise just return tokens back to holder
-            IPikaMoon(poolToken).safeTransfer(_msgSender(), stakeValue);
-        }
+        // return user stake
+        IPikaMoon(poolToken).safeTransfer(_msgSender(), stakeValue);
+
         // emits an event
         emit LogUnstake(_msgSender(), _stakeId, stakeValue);
     }
@@ -226,44 +236,30 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
     function claimRewards() external {
         // checks if the contract is in a paused state
         if (paused()) revert CommonErrors.ContractIsPaused();
+
+        // save gas by caching msg.sender
         address _staker = _msgSender();
+        
         // update user state
         _updateReward(_staker);
+
         // get link to a user data structure, we will write into it later
         User storage user = users[_staker];
 
         // check pending rewards rewards to claim and save to memory
-        uint256 pendingRewardsToClaim = user.rewards;
+        uint256 pendingRewardsToClaim = user.pendingRewards;
+        
         // if pending rewards is zero - just return silently
         if (pendingRewardsToClaim == 0) return;
+        
         // clears user pending rewards
-        user.rewards = 0;
+        user.pendingRewards = 0;
 
-        // calculate pending rewards weight,
-        // 2e6 is the bonus weight when staking for 1 year
-        uint256 stakeWeight = pendingRewardsToClaim *
-            Stake.YIELD_STAKE_WEIGHT_MULTIPLIER;
-
-        // if the pool is PIKA Pool - create new PIKA stake
-        // and save it - push it into stakes array
-        Stake.Data memory newStake = Stake.Data({
-            value: pendingRewardsToClaim,
-            lockedFrom: _now256(),
-            lockedUntil: _now256() + Stake.MAX_STAKE_PERIOD, // staking rewards for 1 year
-            isYield: true
-        });
-        // add memory stake to storage
-        user.stakes.push(newStake);
-        // updates total user weight with the newly created stake's weight
-        user.totalWeight += stakeWeight;
-
-        // update global variable
-        globalWeight += stakeWeight;
-        // update reserve count
-          totalTokenLock += pendingRewardsToClaim;
+        // transfer pending rewards to staker
+        IPikaMoon(poolToken).safeTransferFrom(stakingRewardAddress,_staker, pendingRewardsToClaim);
 
         // emits an event
-        emit LogClaimRewards(_msgSender(), _staker, pendingRewardsToClaim);
+        emit LogClaimRewards(_staker, pendingRewardsToClaim);
     }
 
     /**
@@ -307,44 +303,41 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
                 newrewardsPerWeight,
                 user.rewardsPerWeightPaid
             ) +
-            user.rewards;
+            user.pendingRewards;
     }
 
+
     /**
-     * @dev Verifies if `secondsPerUpdate` has passed since last PIKA/second
-     *      ratio update and if PIKA/second reward can be decreased by 3%.
+     * @dev Must be called every time user.totalWeight is changed.
+     * @dev Syncs the global pool state, processes the user pending rewards (if any),
+     *      and updates check points values stored in the user struct.
+     * @dev If user is coming from v1 pool, it expects to receive this v1 user weight
+     *      to include in rewards calculations.
      *
-     * @return true if enough time has passed and `updatePIKAPerSecond` can be executed.
+     * @param _staker user address
      */
-    function shouldUpdateRatio() public view returns (bool) {
-        // if rewards farming period has ended
-        if (_now256() > endTime) {
-            // PIKA/second reward cannot be updated anymore
-            return false;
-        }
+    function _updateReward(address _staker) internal {
+        // update pool state
+        _sync();
+        // gets storage reference to the user
+        User storage user = users[_staker];
+        // gas savings
+        uint256 userTotalWeight = user.totalWeight;
 
-        // check if seconds/update have passed since last update
-        return _now256() >= lastRatioUpdate + secondsPerUpdate;
-    }
+        // calculates pending rewards to be added
+        uint256 _rewards = userTotalWeight.earned(
+            rewardsPerWeight,
+            user.rewardsPerWeightPaid
+        );
+        // calculates pending reenue distribution to be added
+        // increases stored user.rewards with value returned
+        user.pendingRewards += _rewards;
 
-    /**
-     * @notice Decreases PIKA/second reward by 3%, can be executed
-     *      no more than once per `secondsPerUpdate` seconds.
-     */
-    function updatePIKAPerSecond() public {
-        // checks if ratio can be updated i.e. if seconds/update have passed
-        if (!shouldUpdateRatio()) revert CommonErrors.CanNotUpdateAtTheMoment();
-
-        // decreases PIKA/second reward by 3%.
-        // To achieve that we multiply by 97 and then
-        // divide by 100
-        pikaPerSecond = (pikaPerSecond * 97) / 100;
-
-        // set current timestamp as the last ratio update timestamp
-        lastRatioUpdate = _now256();
+        // updates user checkpoint values for future calculations
+        user.rewardsPerWeightPaid = rewardsPerWeight;
 
         // emits an event
-        emit LogUpdatePikaPerSecond(_msgSender(), pikaPerSecond);
+        emit LogUpdateRewards(_msgSender(), _staker, _rewards);
     }
 
     /**
@@ -385,11 +378,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         lastRewardsDistribution = currentTimestamp;
 
         // emits an event
-        emit LogSync(
-            _msgSender(),
-            rewardsPerWeight,
-            lastRewardsDistribution
-        );
+        emit LogSync(_msgSender(), rewardsPerWeight, lastRewardsDistribution);
     }
 
     /**
@@ -409,37 +398,44 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         _sync();
     }
 
-    /**
-     * @dev Must be called every time user.totalWeight is changed.
-     * @dev Syncs the global pool state, processes the user pending rewards (if any),
-     *      and updates check points values stored in the user struct.
-     * @dev If user is coming from v1 pool, it expects to receive this v1 user weight
-     *      to include in rewards calculations.
+    
+
+
+      /**
+     * @dev Verifies if `secondsPerUpdate` has passed since last PIKA/second
+     *      ratio update and if PIKA/second reward can be decreased by 3%.
      *
-     * @param _staker user address
+     * @return true if enough time has passed and `updatePIKAPerSecond` can be executed.
      */
-    function _updateReward(address _staker) internal {
-        // update pool state
-        _sync();
-        // gets storage reference to the user
-        User storage user = users[_staker];
-        // gas savings
-        uint256 userTotalWeight = user.totalWeight;
+    function shouldUpdateRatio() public view returns (bool) {
+        // if rewards farming period has ended
+        if (_now256() > endTime) {
+            // PIKA/second reward cannot be updated anymore
+            return false;
+        }
 
-        // calculates pending rewards to be added
-        uint256 _rewards = userTotalWeight.earned(
-            rewardsPerWeight,
-            user.rewardsPerWeightPaid
-        );
-        // calculates pending reenue distribution to be added
-        // increases stored user.rewards with value returned
-        user.rewards += _rewards;
+        // check if seconds/update have passed since last update
+        return _now256() >= lastRatioUpdate + secondsPerUpdate;
+    }
 
-        // updates user checkpoint values for future calculations
-        user.rewardsPerWeightPaid = rewardsPerWeight;
+    /**
+     * @notice Decreases PIKA/second reward by 3%, can be executed
+     *      no more than once per `secondsPerUpdate` seconds.
+     */
+    function updatePIKAPerSecond() public {
+        // checks if ratio can be updated i.e. if seconds/update have passed
+        if (!shouldUpdateRatio()) revert CommonErrors.CanNotUpdateAtTheMoment();
+
+        // decreases PIKA/second reward by 3%.
+        // To achieve that we multiply by 97 and then
+        // divide by 100
+        pikaPerSecond = (pikaPerSecond * 97) / 100;
+
+        // set current timestamp as the last ratio update timestamp
+        lastRatioUpdate = _now256();
 
         // emits an event
-        emit LogUpdateRewards(_msgSender(), _staker, _rewards);
+        emit LogUpdatePikaPerSecond(_msgSender(), pikaPerSecond);
     }
 
     /**

@@ -15,8 +15,6 @@ library Stake {
         uint256 lockedFrom;
         /// @dev locking period - until
         uint256 lockedUntil;
-          /// @dev indicates if the stake was created as a yield reward
-        bool isYield;
     }
 
     /**
