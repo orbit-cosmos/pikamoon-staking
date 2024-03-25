@@ -89,7 +89,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
     /// @dev Token holder storage, maps token holder address to their data record.
     mapping(address => User) public users;
 
-    constructor(address _poolToken, uint256 _weight) Ownable(_msgSender()) {
+    constructor(address _poolToken, uint256 _weight,address _stakingRewardAddress) Ownable(_msgSender()) {
         if (_poolToken == address(0)) {
             revert CommonErrors.ZeroAddress();
         }
@@ -103,6 +103,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         lastRatioUpdate = _now256();
         endTime = _now256() + (5 * 30 days); // 5 months
         totalWeight = 1000; //(direct staking)200 + (pool staking)800
+        stakingRewardAddress = _stakingRewardAddress;
     }
 
     /**
@@ -397,11 +398,8 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         // calls internal function
         _sync();
     }
-
     
-
-
-      /**
+    /**
      * @dev Verifies if `secondsPerUpdate` has passed since last PIKA/second
      *      ratio update and if PIKA/second reward can be decreased by 3%.
      *

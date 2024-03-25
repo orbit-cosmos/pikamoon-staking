@@ -49,12 +49,7 @@ library Stake {
      */
     uint256 internal constant REWARD_PER_WEIGHT_MULTIPLIER = 1e20;
 
-    /**
-     * @dev When we know beforehand that staking is done for yield instead of
-     *      executing `weight()` function we use the following constant.
-     */
-    uint256 internal constant YIELD_STAKE_WEIGHT_MULTIPLIER = 2 * 1e6;
-
+  
     function weight(Data storage _self) internal view returns (uint256) {
         return
             uint256(
