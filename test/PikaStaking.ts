@@ -1,28 +1,35 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import { ethers,upgrades } from "hardhat";
 import { PikaMoon, PikaStaking } from "../typechain-types";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
+import { time } from "@nomicfoundation/hardhat-network-helpers";
 
-const toWei = (value: number) => ethers.parseEther(value.toString());
+const toGWei = (value: number) => ethers.parseUnits(value.toString(),9);
 // const fromWei = (value: number) => ethers.formatEther(value);
 // const now = () => Math.floor(Date.now() / 1000);
 describe("Pika Staking contract testcases", function () {
   async function deployICOFixture() {
-    const [owner, otherAccount, account2] = await ethers.getSigners();
-    const ICOToken = await ethers.getContractFactory("PikaMoon");
-    const PikaStaking = await ethers.getContractFactory("PikaStaking");
-
-    const token:PikaMoon = await ICOToken.deploy(
-      "PIKAMoon",
-      "PIKA",
-      toWei(50_000_000_000),
-      account2.address,
-      account2.address
-    );
-
-    const staking:PikaStaking = await PikaStaking.deploy(token.target);
-    console.log("owner", owner.address);
+    const [owner, stakingReward,account1, account2,] = await ethers.getSigners();
+    const pikamoon = await ethers.getContractFactory("PikaMoon");
+    
+    const token = await upgrades.deployProxy(pikamoon,
+      [
+        "PIKAMoon",
+        "PIKA",
+        owner.address,
+        owner.address
+      ],
+      { initializer: "initialize"}
+      
+      );
+      
+      const PikaStaking = await ethers.getContractFactory("PikaStaking");
+      const staking = await PikaStaking.deploy(
+        token.target,
+        200,
+        stakingReward.address
+        );
     // grant admin role to staking contract
     await token
       .connect(owner)
@@ -31,112 +38,125 @@ describe("Pika Staking contract testcases", function () {
         staking.target
       );
 
-    return { token, staking, owner, otherAccount, account2 };
+
+      await token.mint(stakingReward.address, toGWei(5_000_000_000));
+      await token.connect(stakingReward).approve(staking.target, toGWei(5_000_000_000));
+      await token.mint(account2.address, toGWei(50));
+      await token.mint(account1.address, toGWei(50));
+      await token.excludeFromTax(staking.target,true);
+
+    return { token, staking, owner, account1, account2 };
   }
 
   describe("fn Stake()", async function () {
     let token: PikaMoon,
       staking: PikaStaking,
       owner,
-      otherAccount: HardhatEthersSigner;
+      account1: HardhatEthersSigner;
 
     before(async () => {
       let fixture = await loadFixture(deployICOFixture);
       token = fixture?.token;
       staking = fixture?.staking;
       owner = fixture?.owner;
-      otherAccount = fixture?.otherAccount;
+      account1 = fixture?.account1;
     });
 
     it("should not allow to stake if value is zero", async () => {
-      let stakingAmount = toWei(0);
-      const ONE_DAY_IN_SECS = 1 * 60 * 60;
+      let stakingAmount = toGWei(0);
+      const ONE_MONTH_IN_SECS =  30 * 24 * 60 * 60 ;
       await expect(
-        staking.stake(stakingAmount, ONE_DAY_IN_SECS)
+        staking.stake(stakingAmount, ONE_MONTH_IN_SECS)
       ).to.be.revertedWithCustomError(staking, "ZeroAmount");
     });
 
     it("should not allow to stake if lock duration is less then minimum lock duration", async () => {
-      let stakingAmount = toWei(5000);
-      const ONE_DAY_IN_SECS = 1 * 60;
+      let stakingAmount = toGWei(50);
+      const ONE_DAY_IN_SECS =  24 * 60 * 60;
       await expect(
         staking.stake(stakingAmount, ONE_DAY_IN_SECS)
       ).to.be.revertedWithCustomError(staking, "InvalidLockDuration");
     });
     it("should not allow to stake if lock duration is greater then maximum lock duration", async () => {
-      let stakingAmount = toWei(5000);
-      const ONE_DAY_IN_SECS = 1 * 60 * 60 * 60;
+      let stakingAmount = toGWei(50);
+      const ONE_DAY_IN_SECS = 366 * 24 * 60 * 60;
       await expect(
         staking.stake(stakingAmount, ONE_DAY_IN_SECS)
       ).to.be.revertedWithCustomError(staking, "InvalidLockDuration");
     });
 
     it("should not allow to stake if not allowed staking contract", async () => {
-      let stakingAmount = toWei(5000);
-      const ONE_YEAR = 1 * 60 * 60;
+      let stakingAmount = toGWei(50);
+      const ONE_MONTH_IN_SECS = 30 * 24 * 60 * 60 ;
       await expect(
-        staking.connect(otherAccount).stake(stakingAmount, ONE_YEAR)
+        staking.connect(account1).stake(stakingAmount, ONE_MONTH_IN_SECS)
       ).to.be.revertedWithCustomError(token, "ERC20InsufficientAllowance");
     });
 
-    it("should allow to stake", async () => {
-      await token.mint(otherAccount.address, toWei(5000));
-      let stakingAmount = toWei(5000);
-      await token.connect(otherAccount).approve(staking.target, stakingAmount);
-      const ONE_YEAR = 1 * 60 * 60;
-      expect(await token.balanceOf(otherAccount.address)).to.be.equal(
-        stakingAmount
-      );
-      await expect(
-        staking.connect(otherAccount).stake(stakingAmount, ONE_YEAR)
-      ).to.emit(staking, "LogStake");
-      expect(await token.balanceOf(otherAccount.address)).to.be.equal("0");
-    });
+ 
 
     it("should not allow to stake if contract is paused", async () => {
       await staking.pause(true);
-      let stakingAmount = toWei(0);
-      const ONE_DAY_IN_SECS = 1 * 60 * 60;
+      let stakingAmount = toGWei(50);
+      const ONE_MONTH_IN_SECS = 30 * 24 * 60 * 60 ;
       await expect(
-        staking.stake(stakingAmount, ONE_DAY_IN_SECS)
+        staking.stake(stakingAmount, ONE_MONTH_IN_SECS)
       ).to.be.revertedWithCustomError(staking, "ContractIsPaused");
-    });
-  });
 
-  describe("fn claimYieldRewards()", async function () {
-    let token: PikaMoon,
-      staking: PikaStaking,
-      owner,
-      otherAccount: HardhatEthersSigner;
-
-    before(async () => {
-      let fixture = await loadFixture(deployICOFixture);
-      token = fixture.token;
-      staking = fixture.staking;
-      owner = fixture.owner;
-      otherAccount = fixture.otherAccount;
+      await staking.pause(false);
     });
 
-    it("should allow claim", async () => {
-      await token.mint(otherAccount.address, toWei(5000));
-      let stakingAmount = toWei(5000);
-      await token.connect(otherAccount).approve(staking.target, stakingAmount);
-      const ONE_YEAR = 1 * 60 * 60;
-
-      expect(await token.balanceOf(otherAccount.address)).to.be.equal(
+    it("should allow to stake", async () => {
+      let stakingAmount = toGWei(50);
+      await token.connect(account1).approve(staking.target, stakingAmount);
+      const ONE_MONTH_IN_SECS = 30 * 24 * 60 * 60 ;
+      expect(await token.balanceOf(account1.address)).to.be.equal(
         stakingAmount
       );
-
       await expect(
-        staking.connect(otherAccount).stake(stakingAmount, ONE_YEAR)
+        staking.connect(account1).stake(stakingAmount, ONE_MONTH_IN_SECS)
       ).to.emit(staking, "LogStake");
-
-      expect(await token.balanceOf(otherAccount.address)).to.be.equal("0");
-
-      await expect(staking.connect(otherAccount).claimYieldRewards()).to.emit(
-        staking,
-        "LogClaimYieldRewards"
-      );
+      expect(await token.balanceOf(account1.address)).to.be.equal("0");
     });
+ 
+    it("should allow claim if contract is paused", async () => {
+      await staking.pause(true);
+      await expect(staking.connect(account1).claimRewards()
+      ).to.be.revertedWithCustomError(staking, "ContractIsPaused");
+
+      await staking.pause(false);
+    })
+
+    it("should allow claim", async () => {
+
+      await expect(staking.connect(account1).claimRewards()).to.emit(
+        staking,
+        "LogClaimRewards"
+      );
+    })
+
+
+    it("should not allow unstake if current time is less than lockTime", async () => {
+      await expect(
+        staking.connect(account1).unstake(0)
+      ).to.be.revertedWithCustomError(staking,"StakingTimeNotFinishedYet")
+
+    })
+
+    it("should allow unstake if contract is paused", async () => {
+      await staking.pause(true);
+      await expect(staking.connect(account1).unstake(0)
+      ).to.be.revertedWithCustomError(staking, "ContractIsPaused");
+
+      await staking.pause(false);
+    })
+    it("should allow unstake ", async () => {
+      await time.increase( 30 * 24 * 60 * 60);
+      await expect(
+        staking.connect(account1).unstake(0)
+      ).to.emit(staking, "LogUnstake");
+
+    })
   });
+
 });
