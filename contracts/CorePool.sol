@@ -10,7 +10,7 @@ import {CommonErrors} from "./libraries/Errors.sol";
 import {IPikaStaking} from "./interfaces/IPikaStaking.sol";
 // import "hardhat/console.sol";
 
-contract PikaStaking is Ownable, Pausable, IPikaStaking {
+contract CorePool is Ownable, Pausable, IPikaStaking {
     using Stake for Stake.Data;
     using Stake for uint256;
     using SafeERC20 for IPikaMoon;
@@ -59,7 +59,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
     uint256 public weight;
     
     /// @dev Used to calculate rewards, keeps track of the tokens weight locked in staking.
-    uint256 public globalWeight;
+    uint256 public globalStakeWeight;
 
     /// @dev total pool token reserve. PIKA or PIKA/ETH pair LP token.
     uint256 public totalTokenStaked;
@@ -165,7 +165,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         user.userTotalWeight += (stakeWeight);
         
         // update global weight value
-        globalWeight += stakeWeight;
+        globalStakeWeight += stakeWeight;
         
         // update pool reserve
         totalTokenStaked += _value;
@@ -222,7 +222,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         user.userTotalWeight = user.userTotalWeight - previousWeight;
         
         // update global weight variable
-        globalWeight = globalWeight - previousWeight;
+        globalStakeWeight = globalStakeWeight - previousWeight;
         
         // update global pool token count
         totalTokenStaked -= stakeValue;
@@ -254,7 +254,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         uint256 pendingRewardsToClaim = user.pendingRewards;
         
         // if pending rewards is zero - just return silently
-        if (pendingRewardsToClaim == 0) return;
+        if (pendingRewardsToClaim == 0) revert();
         
         // clears user pending rewards
         user.pendingRewards = 0;
@@ -286,7 +286,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
 
         // if smart contract state was not updated recently, `rewardsPerWeight` value
         // is outdated and we need to recalculate it in order to calculate pending rewards correctly
-        if (_now256() > _lastRewardsDistribution && globalWeight != 0) {
+        if (_now256() > _lastRewardsDistribution && globalStakeWeight != 0) {
             
             uint256 secondsPassed = _now256() > endTime
                 ? endTime - _lastRewardsDistribution
@@ -297,7 +297,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
 
             // recalculated value for `rewardsPerWeight`
             newrewardsPerWeight =
-                pikaRewards.getRewardPerWeight((globalWeight)) +
+                pikaRewards.getRewardPerWeight((globalStakeWeight)) +
                 rewardsPerWeight;
         } else {
             // if smart contract state is up to date, we don't recalculate
@@ -365,8 +365,8 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
         if (_now256() <= lastRewardsDistribution) {
             return;
         }
-        // if globalWeight is zero - update only `lastRewardsDistribution` and exit
-        if (globalWeight == 0) {
+        // if globalStakeWeight is zero - update only `lastRewardsDistribution` and exit
+        if (globalStakeWeight == 0) {
             lastRewardsDistribution = _now256();
             return;
         }
@@ -380,7 +380,7 @@ contract PikaStaking is Ownable, Pausable, IPikaStaking {
             totalWeight;
 
         // update rewards per weight and `lastRewardsDistribution`
-        rewardsPerWeight += pikaReward.getRewardPerWeight(globalWeight);
+        rewardsPerWeight += pikaReward.getRewardPerWeight(globalStakeWeight);
         lastRewardsDistribution = currentTimestamp;
 
         // emits an event
