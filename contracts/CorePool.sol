@@ -7,10 +7,10 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IPikaMoon} from "./interfaces/IPikaMoon.sol";
 import {Stake} from "./libraries/Stake.sol";
 import {CommonErrors} from "./libraries/Errors.sol";
-import {IPikaStaking} from "./interfaces/IPikaStaking.sol";
+import {ICorePool} from "./interfaces/ICorePool.sol";
 // import "hardhat/console.sol";
 
-contract CorePool is Ownable, Pausable, IPikaStaking {
+contract CorePool is Ownable, Pausable, ICorePool {
     using Stake for Stake.Data;
     using Stake for uint256;
     using SafeERC20 for IPikaMoon;

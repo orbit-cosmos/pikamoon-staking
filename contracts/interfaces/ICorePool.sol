@@ -2,7 +2,7 @@
 pragma solidity 0.8.20;
 import '../libraries/Stake.sol';
 
-interface IPikaStaking {
+interface ICorePool {
 
     /* ========== MUTATIVE FUNCTIONS ========== */
 
