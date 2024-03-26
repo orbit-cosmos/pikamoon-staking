@@ -49,12 +49,10 @@ interface IPikaStaking {
     /**
      * @dev Fired in `_updateRewards()`.
      *
-     * @param by an address which processed the rewards (staker or PIKA pool contract
-     *            in case of a multiple claim call)
      * @param from an address which received the yield
      * @param yieldValue value of yield processed
      */
-    event LogUpdateRewards(address indexed by, address indexed from, uint256 yieldValue);
+    event LogUpdateRewards(address indexed from, uint256 yieldValue);
 
     /**
      * @dev Fired in `unstake()`.
