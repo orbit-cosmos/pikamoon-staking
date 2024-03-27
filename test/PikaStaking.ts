@@ -27,6 +27,7 @@ describe("Pika Staking contract testcases", function () {
       const PikaStaking = await ethers.getContractFactory("DirectStaking");
       const staking = await PikaStaking.deploy(
         token.target,
+        token.target,
         200,
         stakingReward.address
         );
