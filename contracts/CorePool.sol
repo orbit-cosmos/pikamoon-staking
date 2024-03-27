@@ -44,6 +44,8 @@ contract CorePool is Ownable, Pausable, ICorePool {
 
     /// @dev Link to the pool token instance, for example PIKA or PIKA/ETH pair LP token.
     address public poolToken;
+    
+    address public rewardToken;
 
 
     /// @dev staking Reward Allocation Pool address 
@@ -92,12 +94,13 @@ contract CorePool is Ownable, Pausable, ICorePool {
     /// @dev Token holder storage, maps token holder address to their data record.
     mapping(address => User) public users;
 
-    constructor(address _poolToken, uint256 _weight,address _stakingRewardAddress) Ownable(_msgSender()) {
+    constructor(address _poolToken, address _rewardToken,uint256 _weight,address _stakingRewardAddress) Ownable(_msgSender()) {
         if (_poolToken == address(0)) {
             revert CommonErrors.ZeroAddress();
         }
         //PIKA or PIKA/ETH pair LP token address.
         poolToken = _poolToken;
+        rewardToken = _rewardToken;
         // init the dependent state variables
         lastRewardsDistribution = _now256();
         weight = _weight; //(direct staking)200
@@ -162,7 +165,7 @@ contract CorePool is Ownable, Pausable, ICorePool {
         user.stakes.push(userStake);
         
         // update user weight
-        user.userTotalWeight += (stakeWeight);
+        user.userTotalWeight += stakeWeight;
         
         // update global weight value
         globalStakeWeight += stakeWeight;
@@ -253,14 +256,14 @@ contract CorePool is Ownable, Pausable, ICorePool {
         // check pending rewards rewards to claim and save to memory
         uint256 pendingRewardsToClaim = user.pendingRewards;
         
-        // if pending rewards is zero - just return silently
-        if (pendingRewardsToClaim == 0) revert();
+        // if pending rewards is zero revert
+        if (pendingRewardsToClaim == 0) return;
         
         // clears user pending rewards
         user.pendingRewards = 0;
 
         // transfer pending rewards to staker
-        IPikaMoon(poolToken).safeTransferFrom(stakingRewardAddress,_staker, pendingRewardsToClaim);
+        IPikaMoon(rewardToken).safeTransferFrom(stakingRewardAddress,_staker, pendingRewardsToClaim);
 
         // emits an event
         emit LogClaimRewards(_staker, pendingRewardsToClaim);
