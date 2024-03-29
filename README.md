@@ -2,20 +2,9 @@
 
 This project is about pikamoon token & staking smart contract.
 
-Try running some of the following tasks:
 
-```shell
-
-npx hardhat node
-npx hardhat compile
-npx hardhat coverage
-npx hardhat check
-npx hardhat size-contracts
-npx hardhat docgen   
-npx hardhat flatten   
-npx hardhat verify   
-npx hardhat test
-forge test -vvvvv --gas-report
-npx hardhat run scripts/deployStaking.js --network sepolia
-npx hardhat --help
-```
+# deployed contracts
+- (sepolia) Pool factory = 0xB00af3788431B5351eE8753adCA8e543bb3Aa858 
+- (sepolia) Direct Staking = 0xbCD9248ed86d4d95368Caa7d4B91f45703155B1A 
+- (sepolia) LP Staking = 0x8A4A2a8577761fee7acd07A4e726134580Db913c 
+- (sepolia) Token =  0x13E467DAda37B741a47fB8c03157d4C133A79d75 

@@ -36,14 +36,7 @@ describe("Pika Staking contract testcases", function () {
         200,
         stakingReward.address
         );
-    // grant admin role to staking contract
-    await token
-      .connect(owner)
-      .grantRole(
-        "0xb19546dff01e856fb3f010c267a7b1c60363cf8a4664e21cc89c26224620214e", // role
-        staking.target
-      );
-
+    
 
       await token.mint(stakingReward.address, toGWei(5_000_000_000));
       await token.connect(stakingReward).approve(staking.target, toGWei(5_000_000_000));
