@@ -448,7 +448,9 @@ contract CorePool is Ownable, Pausable, ICorePool {
      * @param _weight new weight to set for the pool
      */
     function setWeight(uint256 _weight) external {
-        require(msg.sender == address(factory));
+        if(_msgSender() != factory){
+            revert CommonErrors.OnlyFactory();
+        }
         // update pool state using current weight value
         _sync();
 

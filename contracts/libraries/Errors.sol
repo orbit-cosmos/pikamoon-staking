@@ -8,18 +8,10 @@ pragma solidity 0.8.20;
 
 library CommonErrors {
     error ZeroAmount();
-    error TransferFailed();
     error ZeroAddress();
-    error WithdrawFailed();
-    error ExceedMaxTokens();
-    error PhaseIsNotActive();
-    error ClaimingNotStartedYet();
-    error ThereIsNoReward();
     error ContractIsPaused();
     error InvalidLockDuration();
-    error StakingTimeNotFinishedYet();
-    error WrongUnStakeAmount();
     error WrongEndTime();
     error CanNotUpdateAtTheMoment();
-    error ContractIsOutOfRewards();
+    error OnlyFactory();
 }
