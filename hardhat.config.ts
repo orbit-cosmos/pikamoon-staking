@@ -25,11 +25,11 @@ const config: HardhatUserConfig = {
   networks: {
     // LOCAL
     hardhat: {
-      forking: {
-        // url: `https://mainnet.infura.io/v3/${process.env.INFURA_KEY}`,
-        url: `https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}`,
-        blockNumber: 19067936,
-      },
+      // forking: {
+      //   // url: `https://mainnet.infura.io/v3/${process.env.INFURA_KEY}`,
+      //   url: `https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}`,
+      //   blockNumber: 19067936,
+      // },
       chainId: 31337,
     },
     // ethereum mainnet

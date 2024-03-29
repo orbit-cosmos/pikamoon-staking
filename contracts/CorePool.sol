@@ -10,7 +10,7 @@ import {CommonErrors} from "./libraries/Errors.sol";
 import {ICorePool} from "./interfaces/ICorePool.sol";
 import {IPoolFactory} from "./interfaces/IPoolFactory.sol";
 
-// import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 contract CorePool is Ownable, Pausable, ICorePool {
     using Stake for Stake.Data;
@@ -65,8 +65,8 @@ contract CorePool is Ownable, Pausable, ICorePool {
     /// @dev Token holder storage, maps token holder address to their data record.
     mapping(address => User) public users;
 
-    uint256 public upperBoundSlash = 90000;
-    uint256 public lowerBoundSlash = 1000;
+    uint256 public upperBoundSlash = 900; // 90%
+    uint256 public lowerBoundSlash = 100; // 10%
 
     constructor(
         address _poolToken,
@@ -195,9 +195,6 @@ contract CorePool is Ownable, Pausable, ICorePool {
         // store stake weight
         uint256 previousWeight = userStake.weight();
 
-        // deletes stake struct
-        delete user.stakes[_stakeId];
-
         // update user record
         user.userTotalWeight = user.userTotalWeight - previousWeight;
 
@@ -206,8 +203,10 @@ contract CorePool is Ownable, Pausable, ICorePool {
 
         // update global pool token count
         totalTokenStaked -= stakeValue;
+
         // checks if stake is unlocked already
-        if (!(_now256() > userStake.lockedUntil)) {
+        if (_now256() < userStake.lockedUntil) {
+            // uint256 earlyUnstakePercentage = 900 ;
             uint256 earlyUnstakePercentage = calculateEarlyUnstakePercentage(
                 userStake.lockedFrom,
                 block.timestamp,
@@ -215,7 +214,7 @@ contract CorePool is Ownable, Pausable, ICorePool {
             );
 
             uint256 unstakeValue = stakeValue -
-                ((stakeValue * earlyUnstakePercentage) / 100000);
+                ((stakeValue * earlyUnstakePercentage) / 1000);
 
             IPikaMoon(poolToken).safeTransfer(
                 stakingRewardAddress,
@@ -233,6 +232,8 @@ contract CorePool is Ownable, Pausable, ICorePool {
             // emits an event
             emit LogUnstake(_msgSender(), _stakeId, stakeValue, false);
         }
+        // deletes stake struct
+        delete user.stakes[_stakeId];
     }
 
     function calculateEarlyUnstakePercentage(
@@ -241,8 +242,9 @@ contract CorePool is Ownable, Pausable, ICorePool {
         uint256 lockedUntil
     ) public view returns (uint256) {
         if (nowTime <= lockedUntil) {
-            uint256 percentageToSlash = ((nowTime - lockedFrom) * 1000) /
+            uint256 percentageToSlash = (((lockedUntil - nowTime)) * 1000) /
                 (lockedUntil - lockedFrom);
+
             if (percentageToSlash < lowerBoundSlash) {
                 return lowerBoundSlash;
             } else if (percentageToSlash > upperBoundSlash) {
