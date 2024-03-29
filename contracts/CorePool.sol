@@ -65,8 +65,8 @@ contract CorePool is Ownable, Pausable, ICorePool {
     /// @dev Token holder storage, maps token holder address to their data record.
     mapping(address => User) public users;
 
-    uint256 public upperBoundSlash;
-    uint256 public lowerBoundSlash;
+    uint256 public upperBoundSlash = 90000;
+    uint256 public lowerBoundSlash = 10000;
 
     constructor(
         address _poolToken,
