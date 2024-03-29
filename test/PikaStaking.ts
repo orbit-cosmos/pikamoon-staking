@@ -24,10 +24,15 @@ describe("Pika Staking contract testcases", function () {
       
       );
       
+      const PoolFactory = await ethers.getContractFactory("PoolFactory");
+      const poolFactory = await PoolFactory.deploy();
+
+
       const PikaStaking = await ethers.getContractFactory("DirectStaking");
       const staking = await PikaStaking.deploy(
         token.target,
         token.target,
+        poolFactory.target,
         200,
         stakingReward.address
         );
@@ -137,12 +142,6 @@ describe("Pika Staking contract testcases", function () {
     })
 
 
-    it("should not allow unstake if current time is less than lockTime", async () => {
-      await expect(
-        staking.connect(account1).unstake(0)
-      ).to.be.revertedWithCustomError(staking,"StakingTimeNotFinishedYet")
-
-    })
 
     it("should allow unstake if contract is paused", async () => {
       await staking.pause(true);

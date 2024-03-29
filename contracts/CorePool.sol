@@ -8,6 +8,8 @@ import {IPikaMoon} from "./interfaces/IPikaMoon.sol";
 import {Stake} from "./libraries/Stake.sol";
 import {CommonErrors} from "./libraries/Errors.sol";
 import {ICorePool} from "./interfaces/ICorePool.sol";
+import {IPoolFactory} from "./interfaces/IPoolFactory.sol";
+
 // import "hardhat/console.sol";
 
 contract CorePool is Ownable, Pausable, ICorePool {
@@ -32,23 +34,17 @@ contract CorePool is Ownable, Pausable, ICorePool {
     /// @dev updates in the _sync function
     uint256 public rewardsPerWeight;
 
-    /**
-     * @dev The rewards is distributed proportionally to pool weights;
-     *      total weight is here to help in determining the proportion.
-     *      200 for PIKA pool and 800 for PIKA/ETH, so totalWeight is 1000
-     */
-    uint256 public totalWeight;
-
     /// @dev Timestamp of the last rewards distribution event.
     uint256 public lastRewardsDistribution;
 
     /// @dev Link to the pool token instance, for example PIKA or PIKA/ETH pair LP token.
     address public poolToken;
-    
+    /// @dev Link to the reward token instance, for example PIKA
     address public rewardToken;
+    /// @dev Link to the pool factory IPoolFactory instance.
+    address public factory;
 
-
-    /// @dev staking Reward Allocation Pool address 
+    /// @dev staking Reward Allocation Pool address
     address public stakingRewardAddress;
 
     /**  @notice you can lock your tokens for a period between 1 and 12 months.
@@ -59,56 +55,42 @@ contract CorePool is Ownable, Pausable, ICorePool {
      * @dev Pool weight, initial values are 200 for PIKA pool and 800 for PIKA/ETH.
      */
     uint256 public weight;
-    
+
     /// @dev Used to calculate rewards, keeps track of the tokens weight locked in staking.
     uint256 public globalStakeWeight;
 
     /// @dev total pool token reserve. PIKA or PIKA/ETH pair LP token.
     uint256 public totalTokenStaked;
 
-    /**
-     * @dev PIKA/second determines rewards farming reward base
-     */
-    uint256 public pikaPerSecond;
-
-    /**
-     * @dev PIKA/second decreases by 3% every seconds/update
-     *      an update is triggered by executing `updatePIKAPerSecond` public function.
-     */
-    uint256 public secondsPerUpdate;
-
-    /**
-     * @dev End time is the last timestamp when PIKA/second can be decreased;
-     *      it is implied that rewards farming stops after that timestamp.
-     */
-    uint256 public endTime;
-
-    /**
-     * @dev Each time the PIKA/second ratio gets updated, the timestamp
-     *      when the operation has occurred gets recorded into `lastRatioUpdate`.
-     * @dev This timestamp is then used to check if seconds/update `secondsPerUpdate`
-     *      has passed when decreasing rewards reward by 3%.
-     */
-    uint256 public lastRatioUpdate;
-
     /// @dev Token holder storage, maps token holder address to their data record.
     mapping(address => User) public users;
 
-    constructor(address _poolToken, address _rewardToken,uint256 _weight,address _stakingRewardAddress) Ownable(_msgSender()) {
+    uint256 public upperBoundSlash;
+    uint256 public lowerBoundSlash;
+
+    constructor(
+        address _poolToken,
+        address _rewardToken,
+        address _factory,
+        uint256 _weight,
+        address _stakingRewardAddress
+    ) Ownable(_msgSender()) {
         if (_poolToken == address(0)) {
+            revert CommonErrors.ZeroAddress();
+        }
+        if (_rewardToken == address(0)) {
+            revert CommonErrors.ZeroAddress();
+        }
+        if (_stakingRewardAddress == address(0)) {
             revert CommonErrors.ZeroAddress();
         }
         //PIKA or PIKA/ETH pair LP token address.
         poolToken = _poolToken;
         rewardToken = _rewardToken;
+        factory = _factory;
         // init the dependent state variables
         lastRewardsDistribution = _now256();
         weight = _weight; //(direct staking)200
-        pikaPerSecond = 0.0002 gwei;
-        secondsPerUpdate = 14 days;
-        lastRatioUpdate = _now256();
-        endTime = _now256() + (5 * 30 days); // 5 months
-        totalWeight = 1000; //(direct staking)200 + (pool staking)800
         stakingRewardAddress = _stakingRewardAddress;
     }
 
@@ -139,13 +121,13 @@ contract CorePool is Ownable, Pausable, ICorePool {
 
         // get a link to user data struct, we will write to it later
         User storage user = users[_msgSender()];
-        
+
         // update user state
         _updateReward(_msgSender());
-        
+
         // calculates until when a stake is going to be locked
         uint256 lockUntil = _now256() + _lockDuration;
-        
+
         // calculate stake weight. same as weight function in stake.sol library
         uint256 stakeWeight = (((lockUntil - _now256()) *
             Stake.WEIGHT_MULTIPLIER) /
@@ -160,16 +142,16 @@ contract CorePool is Ownable, Pausable, ICorePool {
             lockedFrom: _now256(),
             lockedUntil: lockUntil
         });
-        
+
         // pushes new stake to `stakes` array
         user.stakes.push(userStake);
-        
+
         // update user weight
         user.userTotalWeight += stakeWeight;
-        
+
         // update global weight value
         globalStakeWeight += stakeWeight;
-        
+
         // update pool reserve
         totalTokenStaked += _value;
 
@@ -191,7 +173,8 @@ contract CorePool is Ownable, Pausable, ICorePool {
 
     /**
      * @dev Unstakes a stake that has been previously locked, and is now in an unlocked
-     *      state.
+     *      state if user tries to early unstake he is slashed according to percentage of time calculations
+     *      restricted by upper and lower bound
      *
      * @param _stakeId stake ID to unstake from, zero-indexed
      */
@@ -204,17 +187,11 @@ contract CorePool is Ownable, Pausable, ICorePool {
 
         // update user state
         _updateReward(_msgSender());
-        
+
         // get a link to the corresponding stake, we may write to it later
         Stake.Data storage userStake = user.stakes[_stakeId];
-        
-        // checks if stake is unlocked already
-        if (!(_now256() > userStake.lockedUntil))
-            revert CommonErrors.StakingTimeNotFinishedYet();
 
-         // save gas by caching userStake.value
         uint256 stakeValue = userStake.value;
-
         // store stake weight
         uint256 previousWeight = userStake.weight();
 
@@ -223,18 +200,59 @@ contract CorePool is Ownable, Pausable, ICorePool {
 
         // update user record
         user.userTotalWeight = user.userTotalWeight - previousWeight;
-        
+
         // update global weight variable
         globalStakeWeight = globalStakeWeight - previousWeight;
-        
+
         // update global pool token count
         totalTokenStaked -= stakeValue;
+        // checks if stake is unlocked already
+        if (!(_now256() > userStake.lockedUntil)) {
+            uint256 earlyUnstakePercentage = calculateEarlyUnstakePercentage(
+                userStake.lockedFrom,
+                block.timestamp,
+                userStake.lockedUntil
+            );
 
-        // return user stake
-        IPikaMoon(poolToken).safeTransfer(_msgSender(), stakeValue);
+            uint256 unstakeValue = stakeValue -
+                ((stakeValue * earlyUnstakePercentage) / 100000);
 
-        // emits an event
-        emit LogUnstake(_msgSender(), _stakeId, stakeValue);
+            IPikaMoon(poolToken).safeTransfer(
+                stakingRewardAddress,
+                stakeValue - unstakeValue
+            );
+
+            // return user stake
+            IPikaMoon(poolToken).safeTransfer(_msgSender(), unstakeValue);
+            // emits an event
+            emit LogUnstake(_msgSender(), _stakeId, unstakeValue, true);
+        } else {
+            // return user stake
+            IPikaMoon(poolToken).safeTransfer(_msgSender(), stakeValue);
+
+            // emits an event
+            emit LogUnstake(_msgSender(), _stakeId, stakeValue, false);
+        }
+    }
+
+    function calculateEarlyUnstakePercentage(
+        uint256 lockedFrom,
+        uint256 nowTime,
+        uint256 lockedUntil
+    ) public view returns (uint256) {
+        if (nowTime <= lockedUntil) {
+            uint256 percentageToSlash = ((nowTime - lockedFrom) * 1000) /
+                (lockedUntil - lockedFrom);
+            if (percentageToSlash < lowerBoundSlash) {
+                return lowerBoundSlash;
+            } else if (percentageToSlash > upperBoundSlash) {
+                return upperBoundSlash;
+            } else {
+                return percentageToSlash;
+            }
+        } else {
+            return 0;
+        }
     }
 
     /**
@@ -246,7 +264,7 @@ contract CorePool is Ownable, Pausable, ICorePool {
 
         // save gas by caching msg.sender
         address _staker = _msgSender();
-        
+
         // update user state
         _updateReward(_staker);
 
@@ -255,15 +273,19 @@ contract CorePool is Ownable, Pausable, ICorePool {
 
         // check pending rewards rewards to claim and save to memory
         uint256 pendingRewardsToClaim = user.pendingRewards;
-        
+
         // if pending rewards is zero revert
         if (pendingRewardsToClaim == 0) return;
-        
+
         // clears user pending rewards
         user.pendingRewards = 0;
 
         // transfer pending rewards to staker
-        IPikaMoon(rewardToken).safeTransferFrom(stakingRewardAddress,_staker, pendingRewardsToClaim);
+        IPikaMoon(rewardToken).safeTransferFrom(
+            stakingRewardAddress,
+            _staker,
+            pendingRewardsToClaim
+        );
 
         // emits an event
         emit LogClaimRewards(_staker, pendingRewardsToClaim);
@@ -290,13 +312,14 @@ contract CorePool is Ownable, Pausable, ICorePool {
         // if smart contract state was not updated recently, `rewardsPerWeight` value
         // is outdated and we need to recalculate it in order to calculate pending rewards correctly
         if (_now256() > _lastRewardsDistribution && globalStakeWeight != 0) {
-            
-            uint256 secondsPassed = _now256() > endTime
-                ? endTime - _lastRewardsDistribution
+            IPoolFactory _factory = IPoolFactory(factory);
+            uint256 secondsPassed = _now256() > _factory.endTime()
+                ? _factory.endTime() - _lastRewardsDistribution
                 : _now256() - _lastRewardsDistribution;
 
-            uint256 pikaRewards = (secondsPassed * pikaPerSecond * weight) /
-                totalWeight;
+            uint256 pikaRewards = (secondsPassed *
+                _factory.pikaPerSecond() *
+                weight) / _factory.totalWeight();
 
             // recalculated value for `rewardsPerWeight`
             newrewardsPerWeight =
@@ -314,7 +337,6 @@ contract CorePool is Ownable, Pausable, ICorePool {
             ) +
             user.pendingRewards;
     }
-
 
     /**
      * @dev Must be called every time user.userTotalWeight is changed.
@@ -355,13 +377,15 @@ contract CorePool is Ownable, Pausable, ICorePool {
      *      updates state via `updatePIKAPerSecond`
      */
     function _sync() internal {
+        IPoolFactory _factory = IPoolFactory(factory);
         // update PIKA per second value
-        if (shouldUpdateRatio()) {
-            updatePIKAPerSecond();
+        if (_factory.shouldUpdateRatio()) {
+            _factory.updatePIKAPerSecond();
         }
 
         // check bound conditions and if these are not met -
         // exit silently, without emitting an event
+        uint256 endTime = _factory.endTime();
         if (lastRewardsDistribution >= endTime) {
             return;
         }
@@ -379,8 +403,9 @@ contract CorePool is Ownable, Pausable, ICorePool {
         uint256 secondsPassed = currentTimestamp - lastRewardsDistribution;
 
         // calculate the reward
-        uint256 pikaReward = (secondsPassed * pikaPerSecond * weight) /
-            totalWeight;
+        uint256 pikaReward = (secondsPassed *
+            _factory.pikaPerSecond() *
+            weight) / _factory.totalWeight();
 
         // update rewards per weight and `lastRewardsDistribution`
         rewardsPerWeight += pikaReward.getRewardPerWeight(globalStakeWeight);
@@ -406,77 +431,22 @@ contract CorePool is Ownable, Pausable, ICorePool {
         // calls internal function
         _sync();
     }
-    
+
     /**
-     * @dev Verifies if `secondsPerUpdate` has passed since last PIKA/second
-     *      ratio update and if PIKA/second reward can be decreased by 3%.
+     * @dev Executed by the factory to modify pool weight; the factory is expected
+     *      to keep track of the total pools weight when updating.
      *
-     * @return true if enough time has passed and `updatePIKAPerSecond` can be executed.
-     */
-    function shouldUpdateRatio() public view returns (bool) {
-        // if rewards farming period has ended
-        if (_now256() > endTime) {
-            // PIKA/second reward cannot be updated anymore
-            return false;
-        }
-
-        // check if seconds/update have passed since last update
-        return _now256() >= lastRatioUpdate + secondsPerUpdate;
-    }
-
-    /**
-     * @notice Decreases PIKA/second reward by 3%, can be executed
-     *      no more than once per `secondsPerUpdate` seconds.
-     */
-    function updatePIKAPerSecond() public {
-        // checks if ratio can be updated i.e. if seconds/update have passed
-        if (!shouldUpdateRatio()) revert CommonErrors.CanNotUpdateAtTheMoment();
-
-        // decreases PIKA/second reward by 3%.
-        // To achieve that we multiply by 97 and then
-        // divide by 100
-        pikaPerSecond = (pikaPerSecond * 97) / 100;
-
-        // set current timestamp as the last ratio update timestamp
-        lastRatioUpdate = _now256();
-
-        // emits an event
-        emit LogUpdatePikaPerSecond(_msgSender(), pikaPerSecond);
-    }
-
-    /**
-     * @dev Updates rewards generation ending timestamp.
+     * @dev Set weight to zero to disable the pool.
      *
-     * @param _endTime new end time value to be stored
+     * @param _weight new weight to set for the pool
      */
-    function setEndTime(uint256 _endTime) external onlyOwner {
-        // checks if _endTime is a timestap after the last time that
-        // PIKA/second has been updated
-        if (!(_endTime > lastRatioUpdate)) {
-            revert CommonErrors.WrongEndTime();
-        }
-        // updates endTime state var
-        endTime = _endTime;
+    function setWeight(uint256 _weight) external {
+        require(msg.sender == address(factory));
+        // update pool state using current weight value
+        _sync();
 
-        // emits an event
-        emit LogSetEndTime(_msgSender(), _endTime);
-    }
-
-    /**
-     * @dev Changes the weight of the pool;
-     *      executed by the pool itself or by the factory owner.
-     *
-     * @param _weight new weight value to set to
-     */
-    function changePoolWeight(uint256 _weight) external onlyOwner {
-        // recalculate total weight
-        totalWeight = totalWeight + _weight - weight;
-
-        // set the new pool weight
+        // set the new weight value
         weight = _weight;
-
-        // emits an event
-        emit LogChangePoolWeight(_msgSender(), address(this), weight);
     }
 
     /**
@@ -511,11 +481,8 @@ contract CorePool is Ownable, Pausable, ICorePool {
         // calculate length
         uint256 len = user.stakes.length;
         // loops over each user stake and adds to the total balance.
-        for (uint256 i; i < len; ) {
+        for (uint256 i; i < len; i++) {
             balance += user.stakes[i].value;
-            unchecked {
-                i = i + 1;
-            }
         }
     }
 

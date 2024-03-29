@@ -12,21 +12,19 @@ interface ICorePool {
 
     function claimRewards() external;
 
-    function updatePIKAPerSecond() external;
 
     function sync() external;
 
+    function setWeight(uint256 _weight) external;
+
     /* ========== RESTRICTED FUNCTIONS ========== */
 
-    function setEndTime(uint256 _endTime) external;
 
-    function changePoolWeight(uint256 _weight) external;
 
     function pause(bool _shouldPause) external;
 
     /* ========== READ FUNCTIONS ========== */
 
-    function shouldUpdateRatio() external view returns (bool);
 
     function pendingRewards(address _staker) external view returns (uint256 pendingYield);
 
@@ -35,6 +33,8 @@ interface ICorePool {
     function getStakesLength(address _user) external view returns (uint256);
 
     function getStake(address _user, uint256 _stakeId) external view returns (Stake.Data memory);
+
+    function weight() external view returns(uint256);
 
     /* ========== EVENTS ========== */
 
@@ -61,7 +61,7 @@ interface ICorePool {
      * @param stakeId id value of the stake
      * @param value number of tokens unstaked
      */
-    event LogUnstake(address indexed to, uint256 stakeId, uint256 value);
+    event LogUnstake(address indexed to, uint256 stakeId, uint256 value, bool isEarlyUnstake);
     /**
      * @dev Fired in `updatePIKAPerSecond()`.
      *
