@@ -9,3 +9,4 @@ typechain-types
 cache
 out
 cache_forge
+.*

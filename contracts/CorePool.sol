@@ -10,7 +10,7 @@ import {CommonErrors} from "./libraries/Errors.sol";
 import {ICorePool} from "./interfaces/ICorePool.sol";
 import {IPoolFactory} from "./interfaces/IPoolFactory.sol";
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 contract CorePool is Ownable, Pausable, ICorePool {
     using Stake for Stake.Data;
@@ -84,14 +84,21 @@ contract CorePool is Ownable, Pausable, ICorePool {
         if (_stakingRewardAddress == address(0)) {
             revert CommonErrors.ZeroAddress();
         }
+         if (_factory == address(0)) {
+            revert CommonErrors.ZeroAddress();
+        }
         //PIKA or PIKA/ETH pair LP token address.
         poolToken = _poolToken;
+        //PIKA token address.
         rewardToken = _rewardToken;
+        /// pool factory IPoolFactory instance.
         factory = _factory;
+        // staking Reward Allocation Pool address
+        stakingRewardAddress = _stakingRewardAddress;
         // init the dependent state variables
         lastRewardsDistribution = _now256();
-        weight = _weight; //(direct staking)200
-        stakingRewardAddress = _stakingRewardAddress;
+        // direct staking weight 200 and lp staking 800
+        weight = _weight; 
     }
 
     /**
@@ -206,21 +213,19 @@ contract CorePool is Ownable, Pausable, ICorePool {
 
         // checks if stake is unlocked already
         if (_now256() < userStake.lockedUntil) {
-            // uint256 earlyUnstakePercentage = 900 ;
             uint256 earlyUnstakePercentage = calculateEarlyUnstakePercentage(
                 userStake.lockedFrom,
-                block.timestamp,
+                _now256(),
                 userStake.lockedUntil
             );
 
             uint256 unstakeValue = stakeValue -
                 ((stakeValue * earlyUnstakePercentage) / 1000);
-
+            // transfer slash amount
             IPikaMoon(poolToken).safeTransfer(
                 stakingRewardAddress,
                 stakeValue - unstakeValue
             );
-
             // return user stake
             IPikaMoon(poolToken).safeTransfer(_msgSender(), unstakeValue);
             // emits an event

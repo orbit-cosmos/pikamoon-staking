@@ -88,8 +88,6 @@ contract PoolFactory is Ownable {
     constructor(
 
     )  Ownable(_msgSender()){
-  
-
         pikaPerSecond = 0.0002 gwei;
         secondsPerUpdate = 14 days;
         lastRatioUpdate = block.timestamp;

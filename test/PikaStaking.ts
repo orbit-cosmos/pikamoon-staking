@@ -144,7 +144,7 @@ describe("Pika Staking contract testcases", function () {
       await staking.pause(false);
     })
     it("should allow unstake ", async () => {
-      // await time.increase( 30 * 24 * 60 * 60);
+      await time.increase( 30 * 24 * 60 * 60);
       await expect(
         staking.connect(account1).unstake(0)
       ).to.emit(staking, "LogUnstake");
