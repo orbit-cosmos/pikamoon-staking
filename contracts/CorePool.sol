@@ -66,7 +66,7 @@ contract CorePool is Ownable, Pausable, ICorePool {
     mapping(address => User) public users;
 
     uint256 public upperBoundSlash = 90000;
-    uint256 public lowerBoundSlash = 10000;
+    uint256 public lowerBoundSlash = 1000;
 
     constructor(
         address _poolToken,
