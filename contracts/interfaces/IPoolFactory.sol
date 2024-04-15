@@ -18,6 +18,7 @@ interface IPoolFactory {
    function shouldUpdateRatio() external view returns (bool);
 
     function updatePIKAPerSecond() external;
+    function transferRewardTokens(address _token, address _to, uint256 _value) external;
 
  
     function changePoolWeight(address pool, uint32 weight) external;

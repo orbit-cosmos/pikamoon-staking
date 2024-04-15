@@ -15,8 +15,7 @@ contract DirectStaking is Initializable, UUPSUpgradeable, CorePool {
         address _poolToken,
         address _rewardToken,
         address _factory,
-        uint256 _weight,
-        address _stakingRewardAddress
+        uint256 _weight
     ) external initializer {
         __Ownable_init(msg.sender);
         __Pausable_init();
@@ -25,8 +24,7 @@ contract DirectStaking is Initializable, UUPSUpgradeable, CorePool {
             _poolToken,
             _rewardToken,
             _factory,
-            _weight,
-            _stakingRewardAddress
+            _weight
         );
     }
 

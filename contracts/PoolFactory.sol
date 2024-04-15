@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
-
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ICorePool} from "./interfaces/ICorePool.sol";
 import {CommonErrors} from "./libraries/Errors.sol";
-
+import {IPikaMoon} from "./interfaces/IPikaMoon.sol";
 contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
+       using SafeERC20 for IPikaMoon;
     /**
      * @dev PIKA/second determines rewards farming reward base
      */
@@ -38,22 +39,12 @@ contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
      */
     uint256 public lastRatioUpdate;
 
-    /**
-     * @dev Fired in registerPool()
-     *
-     * @param by an address which executed an action
-     * @param poolToken pool token address (like Pika)
-     * @param poolAddress deployed pool instance address
-     * @param weight pool weight
-     * @param isFlashPool flag indicating if pool is a flash pool
-     */
-    event LogRegisterPool(
-        address indexed by,
-        address indexed poolToken,
-        address indexed poolAddress,
-        uint64 weight,
-        bool isFlashPool
-    );
+
+
+    /// @dev Keeps track of registered pool addresses, maps pool address -> exists flag.
+    mapping(address=>bool) public stakingPools;
+
+  
 
     /**
      * @dev Fired in `changePoolWeight()`.
@@ -84,6 +75,9 @@ contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
      */
     event LogSetEndTime(address indexed by, uint256 endTime);
 
+
+    event LogRegisterPool(address indexed addr);
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -92,11 +86,30 @@ contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     function initialize() external initializer {
         __Ownable_init(msg.sender);
         __UUPSUpgradeable_init();
-        pikaPerSecond = 0.0002 gwei;
+        pikaPerSecond = 25.3678335870 gwei;
         secondsPerUpdate = 14 days;
         lastRatioUpdate = block.timestamp;
         endTime = block.timestamp + (5 * 30 days); // 5 months
         totalWeight = 1000; //(direct staking)200 + (pool staking)800
+    }
+
+
+
+    function registerPool(address _poolAddress) external onlyOwner{
+        if(stakingPools[_poolAddress]){
+            revert CommonErrors.AlreadyRegistered();
+        }
+        stakingPools[_poolAddress] = true;
+        emit LogRegisterPool(_poolAddress);
+    }
+
+
+  
+    function transferRewardTokens(address _token, address _to, uint256 _value) public {
+        if(!stakingPools[msg.sender]){
+            revert CommonErrors.AlreadyRegistered();
+        }
+        IPikaMoon(_token).safeTransfer(_to, _value);
     }
 
     /**

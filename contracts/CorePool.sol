@@ -28,6 +28,8 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         uint256 rewardsPerWeightPaid;
         /// @dev An array of holder's stakes
         Stake.Data[] stakes;
+        // gap for upgrades
+        uint256[10]  __gap;
     }
 
     /// @dev Used to calculate rewards.
@@ -45,8 +47,6 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     /// @dev Link to the pool factory IPoolFactory instance.
     address public factory;
 
-    /// @dev staking Reward Allocation Pool address
-    address public stakingRewardAddress;
 
     /**  @notice you can lock your tokens for a period between 1 and 12 months.
      * This changes your token weight. By increasing the duration of your lock,
@@ -73,8 +73,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         address _poolToken,
         address _rewardToken,
         address _factory,
-        uint256 _weight,
-        address _stakingRewardAddress
+        uint256 _weight
     ) internal onlyInitializing {
         if (_poolToken == address(0)) {
             revert CommonErrors.ZeroAddress();
@@ -82,9 +81,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         if (_rewardToken == address(0)) {
             revert CommonErrors.ZeroAddress();
         }
-        if (_stakingRewardAddress == address(0)) {
-            revert CommonErrors.ZeroAddress();
-        }
+    
         if (_factory == address(0)) {
             revert CommonErrors.ZeroAddress();
         }
@@ -94,8 +91,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         rewardToken = _rewardToken;
         /// pool factory IPoolFactory instance.
         factory = _factory;
-        // staking Reward Allocation Pool address
-        stakingRewardAddress = _stakingRewardAddress;
+
         // init the dependent state variables
         lastRewardsDistribution = _now256();
         // direct staking weight 200 and lp staking 800
@@ -227,7 +223,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
                 ((stakeValue * earlyUnstakePercentage) / 1000);
             // transfer slash amount
             IPikaMoon(poolToken).safeTransfer(
-                stakingRewardAddress,
+                factory,
                 stakeValue - unstakeValue
             );
             // return user stake
@@ -292,8 +288,9 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         user.pendingRewards = 0;
 
         // transfer pending rewards to staker
-        IPikaMoon(rewardToken).safeTransferFrom(
-            stakingRewardAddress,
+
+        IPoolFactory(factory).transferRewardTokens(
+            rewardToken,
             _staker,
             pendingRewardsToClaim
         );
@@ -528,4 +525,12 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         // read stake at specified index and return
         return users[_user].stakes[_stakeId];
     }
+
+
+     /**
+     * @dev Empty reserved space in storage. The size of the __gap array is calculated so that
+     *      the amount of storage used by a contract always adds up to the 50.
+     *      See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
+     */
+    uint256[40] private __gap;
 }

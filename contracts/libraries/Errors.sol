@@ -14,4 +14,5 @@ library CommonErrors {
     error WrongEndTime();
     error CanNotUpdateAtTheMoment();
     error OnlyFactory();
+    error AlreadyRegistered();
 }
