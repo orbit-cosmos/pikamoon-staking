@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-
 import {IPikaMoon} from "./interfaces/IPikaMoon.sol";
 import {Stake} from "./libraries/Stake.sol";
 import {CommonErrors} from "./libraries/Errors.sol";
 import {ICorePool} from "./interfaces/ICorePool.sol";
 import {IPoolFactory} from "./interfaces/IPoolFactory.sol";
 
-// import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     using Stake for Stake.Data;
@@ -40,7 +41,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     /// @dev Timestamp of the last rewards distribution event.
     uint256 public lastRewardsDistribution;
 
-    /// @dev Link to the pool token instance, for example PIKA or PIKA/ETH pair LP token.
+    /// @dev Link to the pool token instance, for example PIKA or PIKA/USDT pair LP token.
     address public poolToken;
     /// @dev Link to the reward token instance, for example PIKA
     address public rewardToken;
@@ -53,14 +54,14 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
      * you will increase the token weight of the locked tokens.
      * The maximum weight of a locked token is 2 ,
      * which occurs when you lock for a period of 12 months.
-     * @dev Pool weight, initial values are 200 for PIKA pool and 800 for PIKA/ETH.
+     * @dev Pool weight, initial values are 200 for PIKA pool and 800 for PIKA/USDT.
      */
     uint256 public weight;
 
     /// @dev Used to calculate rewards, keeps track of the tokens weight locked in staking.
     uint256 public globalStakeWeight;
 
-    /// @dev total pool token reserve. PIKA or PIKA/ETH pair LP token.
+    /// @dev total pool token reserve. PIKA or PIKA/USDT pair LP token.
     uint256 public totalTokenStaked;
 
     /// @dev Token holder storage, maps token holder address to their data record.
@@ -85,7 +86,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         if (_factory == address(0)) {
             revert CommonErrors.ZeroAddress();
         }
-        //PIKA or PIKA/ETH pair LP token address.
+        //PIKA or PIKA/USDT pair LP token address.
         poolToken = _poolToken;
         //PIKA token address.
         rewardToken = _rewardToken;
@@ -261,13 +262,23 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
             return 0;
         }
     }
-
+ function prefixed(bytes32 hash) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
+    }
     /**
      * @dev claims all pending staking rewards.
      */
-    function claimRewards() external {
+    function claimRewards(uint256 _claimPercentage,  bytes memory _signature) external {
         // checks if the contract is in a paused state
         if (paused()) revert CommonErrors.ContractIsPaused();
+
+
+        bytes32 message = prefixed(keccak256(abi.encodePacked(msg.sender,_claimPercentage)));
+
+
+        if(ECDSA.recover(message, _signature) != owner()){
+            revert CommonErrors.WrongHash();
+        }
 
         // save gas by caching msg.sender
         address _staker = _msgSender();

@@ -2,7 +2,7 @@
 pragma solidity 0.8.20;
 
 /**
- * @dev Stake library used by PIKA pool and PIKA/ETH LP Pool.
+ * @dev Stake library used by PIKA pool and PIKA/USDT LP Pool.
  *
  * @dev Responsible to manage weight calculation and store important constants
  *      related to stake period, base weight and multipliers utilized.
