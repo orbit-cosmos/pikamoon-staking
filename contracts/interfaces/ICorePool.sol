@@ -10,7 +10,7 @@ interface ICorePool {
 
     function unstake(uint256 _stakeId) external;
 
-    function claimRewards(uint256 _claimPercentage,  bytes memory _signature) external;
+    function claimRewards(uint256 _claimPercentage,  bytes memory _signature,uint256 _nonce) external;
 
 
     function sync() external;

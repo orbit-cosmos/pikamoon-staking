@@ -11,12 +11,12 @@ const toGWei = (value: number) => ethers.parseUnits(value.toString(), 9);
 // const fromWei = (value: number) => ethers.formatEther(value);
 // const now = () => Math.floor(Date.now() / 1000);
 
-function encodeAndHash(address: Address | string, amount: bigint | number) {
+function encodeAndHash(address: Address | string, amount: bigint | number,nonce: bigint | number) {
   return ethers.solidityPackedKeccak256(
     // Array of types: declares the data types in the message.
-    ["address", "uint256"],
+    ["address", "uint256","uint256"],
     // Array of values: actual values of the parameters to be hashed.
-    [address, amount],
+    [address, amount,nonce],
   );
 }
 describe("Pika Staking contract testcases", function () {
@@ -123,30 +123,63 @@ describe("Pika Staking contract testcases", function () {
 
     it("should allow claim if contract is paused", async () => {
       await staking.pause(true);
-      const message = encodeAndHash(account1.address, 50);
+      let time = new Date().getTime()
+      const message = encodeAndHash(account1.address, 500,time);
       const signature = await owner.signMessage(ethers.toBeArray(message));
 
       await expect(
-        staking.connect(account1).claimRewards(50, signature),
+        staking.connect(account1).claimRewards(500, signature,time),
       ).to.be.revertedWithCustomError(staking, "ContractIsPaused");
 
       await staking.pause(false);
     });
     it("should not allow claim if tampered", async () => {
-      const message = encodeAndHash(account1.address, 50);
+      let time = new Date().getTime()
+      const message = encodeAndHash(account1.address, 500, time);
       const signature = await owner.signMessage(ethers.toBeArray(message));
 
       await expect(
-        staking.connect(account1).claimRewards(51, signature),
+        staking.connect(account1).claimRewards(501, signature,time),
       ).to.be.revertedWithCustomError(staking, "WrongHash");
     });
-    it("should allow claim", async () => {
-      const message = encodeAndHash(account1.address, 50);
+
+    it("should not allow claim if claim % is wrong", async () => {
+      let time = new Date().getTime()
+      const message = encodeAndHash(account1.address, 500,time);
       const signature = await owner.signMessage(ethers.toBeArray(message));
 
       await expect(
-        staking.connect(account1).claimRewards(50, signature),
+        staking.connect(account1).claimRewards(10001, signature,time),
+      ).to.be.reverted
+    });
+    it("should allow claim", async () => {
+      let time = new Date().getTime()
+      const message = encodeAndHash(account1.address, 500,time)
+      const signature = await owner.signMessage(ethers.toBeArray(message));
+
+      await expect(
+        staking.connect(account1).claimRewards(500, signature,time),
       ).to.emit(staking, "LogClaimRewards");
+    });
+
+    it("should allow claim", async () => {
+      let time = new Date().getTime()
+      const message = encodeAndHash(account1.address, 500,time)
+      const signature = await owner.signMessage(ethers.toBeArray(message));
+
+      await expect(
+        staking.connect(account1).claimRewards(500, signature,time),
+      ).to.emit(staking, "LogClaimRewards");
+
+
+
+      await expect(
+        staking.connect(account1).claimRewards(500, signature,time),
+      ).to.be.reverted
+
+
+
+
     });
 
     it("should allow unstake if contract is paused", async () => {

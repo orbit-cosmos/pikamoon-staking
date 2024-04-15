@@ -66,6 +66,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
 
     /// @dev Token holder storage, maps token holder address to their data record.
     mapping(address => User) public users;
+    mapping(bytes32 => bool) public signatureUsed;
 
     uint256 public upperBoundSlash;
     uint256 public lowerBoundSlash;
@@ -268,13 +269,15 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     /**
      * @dev claims all pending staking rewards.
      */
-    function claimRewards(uint256 _claimPercentage,  bytes memory _signature) external {
+    function claimRewards(uint256 _claimPercentage,  bytes memory _signature,uint256 nonce) external {
         // checks if the contract is in a paused state
         if (paused()) revert CommonErrors.ContractIsPaused();
 
+        assert(_claimPercentage <= 1000);
 
-        bytes32 message = prefixed(keccak256(abi.encodePacked(msg.sender,_claimPercentage)));
-
+        bytes32 message = prefixed(keccak256(abi.encodePacked(msg.sender,_claimPercentage,nonce)));
+        require(!signatureUsed[message]);
+        signatureUsed[message] = true;
 
         if(ECDSA.recover(message, _signature) != owner()){
             revert CommonErrors.WrongHash();
@@ -296,18 +299,19 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         if (pendingRewardsToClaim == 0) return;
 
         // clears user pending rewards
-        user.pendingRewards = 0;
+        uint256 toClaim = (user.pendingRewards * _claimPercentage)/1000;
+        user.pendingRewards -= toClaim;
 
         // transfer pending rewards to staker
 
         IPoolFactory(factory).transferRewardTokens(
             rewardToken,
             _staker,
-            pendingRewardsToClaim
+            toClaim
         );
 
         // emits an event
-        emit LogClaimRewards(_staker, pendingRewardsToClaim);
+        emit LogClaimRewards(_staker, toClaim);
     }
 
     /**
