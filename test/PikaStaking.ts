@@ -1,7 +1,7 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
-import { PikaMoon, PikaStaking } from "../typechain-types";
+import { PikaMoon, DirectStaking,PoolFactory } from "../typechain-types";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 
@@ -50,7 +50,7 @@ describe("Pika Staking contract testcases", function () {
 
   describe("fn Stake()", async function () {
     let token: PikaMoon,
-      staking: PikaStaking,
+      staking: DirectStaking,
       owner: HardhatEthersSigner,
       account1: HardhatEthersSigner;
 
