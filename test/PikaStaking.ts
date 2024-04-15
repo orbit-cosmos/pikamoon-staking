@@ -25,21 +25,21 @@ describe("Pika Staking contract testcases", function () {
       );
       
       const PoolFactory = await ethers.getContractFactory("PoolFactory");
-      const poolFactory = await PoolFactory.deploy();
+      const poolFactory = await upgrades.deployProxy(PoolFactory,[], { initializer: "initialize"})
 
 
       const PikaStaking = await ethers.getContractFactory("DirectStaking");
-      const staking = await PikaStaking.deploy(
-        token.target,
+      const staking = await upgrades.deployProxy(PikaStaking,
+        [token.target,
         token.target,
         poolFactory.target,
         200,
-        stakingReward.address
+        ],
+        { initializer: "initialize"}
         );
     
-
-      await token.mint(stakingReward.address, toGWei(5_000_000_000));
-      await token.connect(stakingReward).approve(staking.target, toGWei(5_000_000_000));
+      await poolFactory.registerPool(staking.target);
+      await token.mint(poolFactory.target, toGWei(5_000_000_000));
       await token.mint(account2.address, toGWei(50));
       await token.mint(account1.address, toGWei(50));
       await token.excludeFromTax(staking.target,true);
@@ -150,6 +150,10 @@ describe("Pika Staking contract testcases", function () {
       ).to.emit(staking, "LogUnstake");
 
     })
+
+
+
+    
   });
 
 });

@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
-
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ICorePool} from "./interfaces/ICorePool.sol";
 import {CommonErrors} from "./libraries/Errors.sol";
-contract PoolFactory is Ownable {
+import {IPikaMoon} from "./interfaces/IPikaMoon.sol";
+contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
+       using SafeERC20 for IPikaMoon;
     /**
      * @dev PIKA/second determines rewards farming reward base
      */
@@ -37,22 +41,10 @@ contract PoolFactory is Ownable {
 
 
 
-    /**
-     * @dev Fired in registerPool()
-     *
-     * @param by an address which executed an action
-     * @param poolToken pool token address (like Pika)
-     * @param poolAddress deployed pool instance address
-     * @param weight pool weight
-     * @param isFlashPool flag indicating if pool is a flash pool
-     */
-    event LogRegisterPool(
-        address indexed by,
-        address indexed poolToken,
-        address indexed poolAddress,
-        uint64 weight,
-        bool isFlashPool
-    );
+    /// @dev Keeps track of registered pool addresses, maps pool address -> exists flag.
+    mapping(address=>bool) public stakingPools;
+
+  
 
     /**
      * @dev Fired in `changePoolWeight()`.
@@ -61,7 +53,11 @@ contract PoolFactory is Ownable {
      * @param poolAddress deployed pool instance address
      * @param weight new pool weight
      */
-    event LogChangePoolWeight(address indexed by, address indexed poolAddress, uint256 weight);
+    event LogChangePoolWeight(
+        address indexed by,
+        address indexed poolAddress,
+        uint256 weight
+    );
 
     /**
      * @dev Fired in `updatePikaPerSecond()`.
@@ -79,23 +75,42 @@ contract PoolFactory is Ownable {
      */
     event LogSetEndTime(address indexed by, uint256 endTime);
 
-    /**
-     * @dev Initializes a factory instance
-     *
-   
-     */
 
-    constructor(
+    event LogRegisterPool(address indexed addr);
 
-    )  Ownable(_msgSender()){
-        pikaPerSecond = 0.0002 gwei;
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize() external initializer {
+        __Ownable_init(msg.sender);
+        __UUPSUpgradeable_init();
+        pikaPerSecond = 25.3678335870 gwei;
         secondsPerUpdate = 14 days;
         lastRatioUpdate = block.timestamp;
         endTime = block.timestamp + (5 * 30 days); // 5 months
         totalWeight = 1000; //(direct staking)200 + (pool staking)800
-         
     }
 
+
+
+    function registerPool(address _poolAddress) external onlyOwner{
+        if(stakingPools[_poolAddress]){
+            revert CommonErrors.AlreadyRegistered();
+        }
+        stakingPools[_poolAddress] = true;
+        emit LogRegisterPool(_poolAddress);
+    }
+
+
+  
+    function transferRewardTokens(address _token, address _to, uint256 _value) public {
+        if(!stakingPools[msg.sender]){
+            revert CommonErrors.AlreadyRegistered();
+        }
+        IPikaMoon(_token).safeTransfer(_to, _value);
+    }
 
     /**
      * @dev Verifies if `secondsPerUpdate` has passed since last PIKA/second
@@ -134,8 +149,6 @@ contract PoolFactory is Ownable {
         emit LogUpdatePikaPerSecond(_msgSender(), pikaPerSecond);
     }
 
-    
-
     /**
      * @dev Changes the weight of the pool;
      *      executed by the pool itself or by the factory owner.
@@ -144,7 +157,6 @@ contract PoolFactory is Ownable {
      * @param weight new weight value to set to
      */
     function changePoolWeight(address pool, uint256 weight) external onlyOwner {
-
         // recalculate total weight
         totalWeight = totalWeight + weight - ICorePool(pool).weight();
 
@@ -155,7 +167,7 @@ contract PoolFactory is Ownable {
         emit LogChangePoolWeight(msg.sender, address(pool), weight);
     }
 
-   /**
+    /**
      * @dev Updates rewards generation ending timestamp.
      *
      * @param _endTime new end time value to be stored
@@ -173,5 +185,11 @@ contract PoolFactory is Ownable {
         emit LogSetEndTime(_msgSender(), _endTime);
     }
 
-  
+    /**
+     * @dev Function that should revert when `msg.sender` is not authorized to upgrade the contract. Called by
+     * {upgradeToAndCall}.
+     */
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyOwner {}
 }
