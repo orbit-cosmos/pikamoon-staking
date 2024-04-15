@@ -84,7 +84,7 @@ contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     function initialize() external initializer {
-        __Ownable_init(msg.sender);
+        __Ownable_init(_msgSender());
         __UUPSUpgradeable_init();
         pikaPerSecond = 25.3678335870 gwei;
         secondsPerUpdate = 14 days;
@@ -106,7 +106,7 @@ contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
   
     function transferRewardTokens(address _token, address _to, uint256 _value) public {
-        if(!stakingPools[msg.sender]){
+        if(!stakingPools[_msgSender()]){
             revert CommonErrors.AlreadyRegistered();
         }
         IPikaMoon(_token).safeTransfer(_to, _value);
@@ -164,7 +164,7 @@ contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         ICorePool(pool).setWeight(weight);
 
         // emit an event
-        emit LogChangePoolWeight(msg.sender, address(pool), weight);
+        emit LogChangePoolWeight(_msgSender(), address(pool), weight);
     }
 
     /**

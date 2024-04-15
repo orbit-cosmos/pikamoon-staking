@@ -29,8 +29,6 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         uint256 rewardsPerWeightPaid;
         /// @dev An array of holder's stakes
         Stake.Data[] stakes;
-        // gap for upgrades
-        uint256[10]  __gap;
     }
 
     /// @dev Used to calculate rewards.
@@ -64,12 +62,15 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     /// @dev total pool token reserve. PIKA or PIKA/USDT pair LP token.
     uint256 public totalTokenStaked;
 
+    uint256 public upperBoundSlash;
+    uint256 public lowerBoundSlash;
+
+    uint256 private MULTIPLYER;
+
     /// @dev Token holder storage, maps token holder address to their data record.
     mapping(address => User) public users;
     mapping(bytes32 => bool) public signatureUsed;
 
-    uint256 public upperBoundSlash;
-    uint256 public lowerBoundSlash;
 
     function __CorePool_init(
         address _poolToken,
@@ -101,6 +102,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
 
         upperBoundSlash = 900; // 90%
         lowerBoundSlash = 100; // 10%
+        MULTIPLYER = 1000; // 100%
     }
 
     /**
@@ -222,7 +224,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
             );
 
             uint256 unstakeValue = stakeValue -
-                ((stakeValue * earlyUnstakePercentage) / 1000);
+                ((stakeValue * earlyUnstakePercentage) / MULTIPLYER);
             // transfer slash amount
             IPikaMoon(poolToken).safeTransfer(
                 factory,
@@ -249,7 +251,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         uint256 lockedUntil
     ) public view returns (uint256) {
         if (nowTime <= lockedUntil) {
-            uint256 percentageToSlash = (((lockedUntil - nowTime)) * 1000) /
+            uint256 percentageToSlash = (((lockedUntil - nowTime)) * MULTIPLYER) /
                 (lockedUntil - lockedFrom);
 
             if (percentageToSlash < lowerBoundSlash) {
@@ -263,19 +265,19 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
             return 0;
         }
     }
- function prefixed(bytes32 hash) internal pure returns (bytes32) {
+    function prefixed(bytes32 hash) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
     }
     /**
-     * @dev claims all pending staking rewards.
+     * @dev claims pending staking rewards.
      */
     function claimRewards(uint256 _claimPercentage,  bytes memory _signature,uint256 nonce) external {
         // checks if the contract is in a paused state
         if (paused()) revert CommonErrors.ContractIsPaused();
 
-        assert(_claimPercentage <= 1000);
+        assert(_claimPercentage <= MULTIPLYER);
 
-        bytes32 message = prefixed(keccak256(abi.encodePacked(msg.sender,_claimPercentage,nonce)));
+        bytes32 message = prefixed(keccak256(abi.encodePacked(_msgSender(),_claimPercentage,nonce)));
         require(!signatureUsed[message]);
         signatureUsed[message] = true;
 
@@ -298,8 +300,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         // if pending rewards is zero revert
         if (pendingRewardsToClaim == 0) return;
 
-        // clears user pending rewards
-        uint256 toClaim = (user.pendingRewards * _claimPercentage)/1000;
+        uint256 toClaim = (user.pendingRewards * _claimPercentage)/MULTIPLYER;
         user.pendingRewards -= toClaim;
 
         // transfer pending rewards to staker

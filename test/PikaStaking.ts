@@ -8,14 +8,10 @@ import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { Address } from "../typechain-types/contracts/PikaMoon.sol";
 
 const toGWei = (value: number) => ethers.parseUnits(value.toString(), 9);
-// const fromWei = (value: number) => ethers.formatEther(value);
-// const now = () => Math.floor(Date.now() / 1000);
 
 function encodeAndHash(address: Address | string, amount: bigint | number,nonce: bigint | number) {
   return ethers.solidityPackedKeccak256(
-    // Array of types: declares the data types in the message.
     ["address", "uint256","uint256"],
-    // Array of values: actual values of the parameters to be hashed.
     [address, amount,nonce],
   );
 }
