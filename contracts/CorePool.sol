@@ -2,17 +2,17 @@
 pragma solidity 0.8.20;
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
 import {IPikaMoon} from "./interfaces/IPikaMoon.sol";
 import {Stake} from "./libraries/Stake.sol";
 import {CommonErrors} from "./libraries/Errors.sol";
 import {ICorePool} from "./interfaces/ICorePool.sol";
 import {IPoolFactory} from "./interfaces/IPoolFactory.sol";
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     using Stake for Stake.Data;
@@ -244,7 +244,14 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         // deletes stake struct
         delete user.stakes[_stakeId];
     }
-
+    /**
+     * @notice Calculates the penalty percentage for early unstaking based on the remaining locked time
+     * @dev This function returns a penalty percentage scaled by `MULTIPLYER`. The function applies bounds to the penalty, ensuring it does not fall below `lowerBoundSlash` or exceed `upperBoundSlash`.
+     * @param lockedFrom The timestamp when the stake was locked
+     * @param nowTime The current timestamp, representing the moment of the unstaking request
+     * @param lockedUntil The timestamp until which the stake was meant to be locked
+     * @return penaltyPercentage The penalty percentage for unstaking early, scaled by `MULTIPLYER`. If the stake period has ended, returns 0.
+     */
     function calculateEarlyUnstakePercentage(
         uint256 lockedFrom,
         uint256 nowTime,
@@ -265,11 +272,22 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
             return 0;
         }
     }
+
+    /**
+     * @dev Prefixes a bytes32 hash with the string "\x19Ethereum Signed Message:\n32" and then hashes the result. 
+     * This is used to conform with the Ethereum signing standard (EIP-191).
+     * @param hash The original hash that needs to be prefixed and rehashed.
+     * @return The prefixed and rehashed bytes32 value.
+     */
     function prefixed(bytes32 hash) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
     }
-    /**
-     * @dev claims pending staking rewards.
+     /**
+     * @notice Claims a percentage of the accrued rewards for the caller
+     * @dev This function handles the claim process by validating the signature and calculating the reward percentage
+     * @param _claimPercentage The percentage of the pending rewards to claim, scaled by the MULTIPLIER
+     * @param _signature Cryptographic signature to verify the authenticity of the claim
+     * @param nonce A unique identifier to prevent replay attacks
      */
     function claimRewards(uint256 _claimPercentage,  bytes memory _signature,uint256 nonce) external {
         // checks if the contract is in a paused state

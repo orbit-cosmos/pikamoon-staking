@@ -101,13 +101,5 @@ interface ICorePool {
      */
     event LogSetEndTime(address indexed by, uint256 endTime);
 
-    /**
-     * @dev Fired in `changePoolWeight()`.
-     *
-     * @param by an address which executed an action
-     * @param poolAddress deployed pool instance address
-     * @param weight new pool weight
-     */
-    event LogChangePoolWeight(address indexed by, address indexed poolAddress, uint256 weight);
 
 }

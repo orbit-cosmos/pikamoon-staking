@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ICorePool} from "./interfaces/ICorePool.sol";
 import {CommonErrors} from "./libraries/Errors.sol";
 import {IPikaMoon} from "./interfaces/IPikaMoon.sol";
+
 contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
-       using SafeERC20 for IPikaMoon;
+    using SafeERC20 for IPikaMoon;
     /**
      * @dev PIKA/second determines rewards farming reward base
      */
@@ -39,12 +40,8 @@ contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
      */
     uint256 public lastRatioUpdate;
 
-
-
     /// @dev Keeps track of registered pool addresses, maps pool address -> exists flag.
-    mapping(address=>bool) public stakingPools;
-
-  
+    mapping(address => bool) public poolExists;
 
     /**
      * @dev Fired in `changePoolWeight()`.
@@ -75,7 +72,6 @@ contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
      */
     event LogSetEndTime(address indexed by, uint256 endTime);
 
-
     event LogRegisterPool(address indexed addr);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -93,20 +89,20 @@ contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         totalWeight = 1000; //(direct staking)200 + (pool staking)800
     }
 
-
-
-    function registerPool(address _poolAddress) external onlyOwner{
-        if(stakingPools[_poolAddress]){
+    function registerPool(address _poolAddress) external onlyOwner {
+        if (poolExists[_poolAddress]) {
             revert CommonErrors.AlreadyRegistered();
         }
-        stakingPools[_poolAddress] = true;
+        poolExists[_poolAddress] = true;
         emit LogRegisterPool(_poolAddress);
     }
 
-
-  
-    function transferRewardTokens(address _token, address _to, uint256 _value) public {
-        if(!stakingPools[_msgSender()]){
+    function transferRewardTokens(
+        address _token,
+        address _to,
+        uint256 _value
+    ) public {
+        if (!poolExists[_msgSender()]) {
             revert CommonErrors.AlreadyRegistered();
         }
         IPikaMoon(_token).safeTransfer(_to, _value);
