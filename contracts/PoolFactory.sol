@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ICorePool} from "./interfaces/ICorePool.sol";
 import {CommonErrors} from "./libraries/Errors.sol";
-contract PoolFactory is Ownable {
+
+contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     /**
      * @dev PIKA/second determines rewards farming reward base
      */
@@ -35,8 +38,6 @@ contract PoolFactory is Ownable {
      */
     uint256 public lastRatioUpdate;
 
-
-
     /**
      * @dev Fired in registerPool()
      *
@@ -61,7 +62,11 @@ contract PoolFactory is Ownable {
      * @param poolAddress deployed pool instance address
      * @param weight new pool weight
      */
-    event LogChangePoolWeight(address indexed by, address indexed poolAddress, uint256 weight);
+    event LogChangePoolWeight(
+        address indexed by,
+        address indexed poolAddress,
+        uint256 weight
+    );
 
     /**
      * @dev Fired in `updatePikaPerSecond()`.
@@ -79,23 +84,20 @@ contract PoolFactory is Ownable {
      */
     event LogSetEndTime(address indexed by, uint256 endTime);
 
-    /**
-     * @dev Initializes a factory instance
-     *
-   
-     */
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
 
-    constructor(
-
-    )  Ownable(_msgSender()){
+    function initialize() external initializer {
+        __Ownable_init(msg.sender);
+        __UUPSUpgradeable_init();
         pikaPerSecond = 0.0002 gwei;
         secondsPerUpdate = 14 days;
         lastRatioUpdate = block.timestamp;
         endTime = block.timestamp + (5 * 30 days); // 5 months
         totalWeight = 1000; //(direct staking)200 + (pool staking)800
-         
     }
-
 
     /**
      * @dev Verifies if `secondsPerUpdate` has passed since last PIKA/second
@@ -134,8 +136,6 @@ contract PoolFactory is Ownable {
         emit LogUpdatePikaPerSecond(_msgSender(), pikaPerSecond);
     }
 
-    
-
     /**
      * @dev Changes the weight of the pool;
      *      executed by the pool itself or by the factory owner.
@@ -144,7 +144,6 @@ contract PoolFactory is Ownable {
      * @param weight new weight value to set to
      */
     function changePoolWeight(address pool, uint256 weight) external onlyOwner {
-
         // recalculate total weight
         totalWeight = totalWeight + weight - ICorePool(pool).weight();
 
@@ -155,7 +154,7 @@ contract PoolFactory is Ownable {
         emit LogChangePoolWeight(msg.sender, address(pool), weight);
     }
 
-   /**
+    /**
      * @dev Updates rewards generation ending timestamp.
      *
      * @param _endTime new end time value to be stored
@@ -173,5 +172,11 @@ contract PoolFactory is Ownable {
         emit LogSetEndTime(_msgSender(), _endTime);
     }
 
-  
+    /**
+     * @dev Function that should revert when `msg.sender` is not authorized to upgrade the contract. Called by
+     * {upgradeToAndCall}.
+     */
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyOwner {}
 }

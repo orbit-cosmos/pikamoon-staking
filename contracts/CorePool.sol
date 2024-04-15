@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {Context} from "@openzeppelin/contracts/utils/Context.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
 import {IPikaMoon} from "./interfaces/IPikaMoon.sol";
 import {Stake} from "./libraries/Stake.sol";
 import {CommonErrors} from "./libraries/Errors.sol";
@@ -12,7 +13,7 @@ import {IPoolFactory} from "./interfaces/IPoolFactory.sol";
 
 // import "hardhat/console.sol";
 
-contract CorePool is Ownable, Pausable, ICorePool {
+contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     using Stake for Stake.Data;
     using Stake for uint256;
     using SafeERC20 for IPikaMoon;
@@ -65,16 +66,16 @@ contract CorePool is Ownable, Pausable, ICorePool {
     /// @dev Token holder storage, maps token holder address to their data record.
     mapping(address => User) public users;
 
-    uint256 public upperBoundSlash = 900; // 90%
-    uint256 public lowerBoundSlash = 100; // 10%
+    uint256 public upperBoundSlash;
+    uint256 public lowerBoundSlash;
 
-    constructor(
+    function __CorePool_init(
         address _poolToken,
         address _rewardToken,
         address _factory,
         uint256 _weight,
         address _stakingRewardAddress
-    ) Ownable(_msgSender()) {
+    ) internal onlyInitializing {
         if (_poolToken == address(0)) {
             revert CommonErrors.ZeroAddress();
         }
@@ -84,7 +85,7 @@ contract CorePool is Ownable, Pausable, ICorePool {
         if (_stakingRewardAddress == address(0)) {
             revert CommonErrors.ZeroAddress();
         }
-         if (_factory == address(0)) {
+        if (_factory == address(0)) {
             revert CommonErrors.ZeroAddress();
         }
         //PIKA or PIKA/ETH pair LP token address.
@@ -98,7 +99,10 @@ contract CorePool is Ownable, Pausable, ICorePool {
         // init the dependent state variables
         lastRewardsDistribution = _now256();
         // direct staking weight 200 and lp staking 800
-        weight = _weight; 
+        weight = _weight;
+
+        upperBoundSlash = 900; // 90%
+        lowerBoundSlash = 100; // 10%
     }
 
     /**
@@ -448,7 +452,7 @@ contract CorePool is Ownable, Pausable, ICorePool {
      * @param _weight new weight to set for the pool
      */
     function setWeight(uint256 _weight) external {
-        if(_msgSender() != factory){
+        if (_msgSender() != factory) {
             revert CommonErrors.OnlyFactory();
         }
         // update pool state using current weight value
