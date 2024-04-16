@@ -8,7 +8,7 @@ import {ICorePool} from "./interfaces/ICorePool.sol";
 import {CommonErrors} from "./libraries/Errors.sol";
 import {IPikaMoon} from "./interfaces/IPikaMoon.sol";
 
-contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
+contract PoolController is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     using SafeERC20 for IPikaMoon;
     /**
      * @dev PIKA/second determines rewards farming reward base
@@ -57,11 +57,13 @@ contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     function initialize() external initializer {
         __Ownable_init(_msgSender());
         __UUPSUpgradeable_init();
-        pikaPerSecond = 25.3678335870 gwei;
+        pikaPerSecond = 25.3678335870 gwei; // pika has 9 decimals, so gwei = 10**9
 
         totalWeight = 1000; //(direct staking)200 + (pool staking)800
     }
-
+    /// @notice Registers a new pool
+    /// @dev Only callable by the owner; emits LogRegisterPool on success
+    /// @param _poolAddress The address of the pool to register
     function registerPool(address _poolAddress) external onlyOwner {
         if (poolExists[_poolAddress]) {
             revert CommonErrors.AlreadyRegistered();
@@ -69,12 +71,20 @@ contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         poolExists[_poolAddress] = true;
         emit LogRegisterPool(_poolAddress);
     }
-
+    /// @notice Updates the rate of PIKA distribution per second
+    /// @dev Only callable by the owner; emits LogUpdatePikaPerSecond on success
+    /// @param _pikaPerSecond The new rate of PIKA distribution per second
     function updatePikaPerSecond(uint256 _pikaPerSecond) external onlyOwner {
         if (_pikaPerSecond == 0) revert CommonErrors.ZeroAmount();
         pikaPerSecond = _pikaPerSecond;
         emit LogUpdatePikaPerSecond(_pikaPerSecond);
     }
+
+    /// @notice Transfers reward tokens from a registered pool
+    /// @dev Only callable by a registered pool
+    /// @param _token The token address to transfer
+    /// @param _to The recipient address
+    /// @param _value The amount of tokens to transfer
     function transferRewardTokens(
         address _token,
         address _to,

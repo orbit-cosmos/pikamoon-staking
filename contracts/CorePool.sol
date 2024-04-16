@@ -10,7 +10,7 @@ import {IPikaMoon} from "./interfaces/IPikaMoon.sol";
 import {Stake} from "./libraries/Stake.sol";
 import {CommonErrors} from "./libraries/Errors.sol";
 import {ICorePool} from "./interfaces/ICorePool.sol";
-import {IPoolFactory} from "./interfaces/IPoolFactory.sol";
+import {IPoolController} from "./interfaces/IPoolController.sol";
 
 // import "hardhat/console.sol";
 
@@ -43,8 +43,8 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     address public poolToken;
     /// @dev Link to the reward token instance, for example PIKA
     address public rewardToken;
-    /// @dev Link to the pool factory IPoolFactory instance.
-    address public factory;
+    /// @dev Link to the pool controller IPoolController instance.
+    address public poolController;
 
 
     /**  @notice you can lock your tokens for a period between 1 and 12 months.
@@ -70,6 +70,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
 
     /// @dev Token holder storage, maps token holder address to their data record.
     mapping(address => User) public users;
+    
     /// @dev mapping to prevent signature replay
     mapping(bytes32 => bool) public signatureUsed;
 
@@ -77,7 +78,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     function __CorePool_init(
         address _poolToken,
         address _rewardToken,
-        address _factory,
+        address _poolController,
         uint256 _weight
     ) internal onlyInitializing {
         if (_poolToken == address(0)) {
@@ -87,15 +88,15 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
             revert CommonErrors.ZeroAddress();
         }
     
-        if (_factory == address(0)) {
+        if (_poolController == address(0)) {
             revert CommonErrors.ZeroAddress();
         }
         //PIKA or PIKA/USDT pair LP token address.
         poolToken = _poolToken;
         //PIKA token address.
         rewardToken = _rewardToken;
-        /// pool factory IPoolFactory instance.
-        factory = _factory;
+        /// pool controller IPoolController instance.
+        poolController = _poolController;
 
         // init the dependent state variables
         lastRewardsDistribution = _now256();
@@ -229,7 +230,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
                 ((stakeValue * earlyUnstakePercentage) / multiplier);
             // transfer slash amount
             IPikaMoon(poolToken).safeTransfer(
-                factory,
+                poolController,
                 stakeValue - unstakeValue
             );
             // return user stake
@@ -325,7 +326,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
 
         // transfer pending rewards to staker
 
-        IPoolFactory(factory).transferRewardTokens(
+        IPoolController(poolController).transferRewardTokens(
             rewardToken,
             _staker,
             toClaim
@@ -356,12 +357,12 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         // if smart contract state was not updated recently, `rewardsPerWeight` value
         // is outdated and we need to recalculate it in order to calculate pending rewards correctly
         if (_now256() > _lastRewardsDistribution && globalStakeWeight != 0) {
-            IPoolFactory _factory = IPoolFactory(factory);
+            IPoolController _controller = IPoolController(poolController);
             uint256 secondsPassed = _now256() - _lastRewardsDistribution;
 
             uint256 pikaRewards = (secondsPassed *
-                _factory.pikaPerSecond() *
-                weight) / _factory.totalWeight();
+                _controller.pikaPerSecond() *
+                weight) / _controller.totalWeight();
 
             // recalculated value for `rewardsPerWeight`
             newrewardsPerWeight =
@@ -419,7 +420,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
      *      updates state via `updatePIKAPerSecond`
      */
     function _sync() internal {
-        IPoolFactory _factory = IPoolFactory(factory);
+        IPoolController _poolController = IPoolController(poolController);
        
         if (_now256() <= lastRewardsDistribution) {
             return;
@@ -436,8 +437,8 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
 
         // calculate the reward
         uint256 pikaReward = (secondsPassed *
-            _factory.pikaPerSecond() *
-            weight) / _factory.totalWeight();
+            _poolController.pikaPerSecond() *
+            weight) / _poolController.totalWeight();
 
         // update rewards per weight and `lastRewardsDistribution`
         rewardsPerWeight += pikaReward.getRewardPerWeight(globalStakeWeight);
@@ -454,7 +455,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
      *      at least one second passes between synchronizations.
      * @dev Executed internally when staking, unstaking, processing rewards in order
      *      for calculations to be correct and to reflect state progress of the contract.
-     * @dev When timing conditions are not met (executed too frequently, or after factory
+     * @dev When timing conditions are not met (executed too frequently, or after pool Controller
      *      end time), function doesn't throw and exits silently.
      */
     function sync() external {
@@ -465,7 +466,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     }
 
     /**
-     * @dev Executed by the factory to modify pool weight; the factory is expected
+     * @dev Executed by the pool Controller to modify pool weight; the pool Controller is expected
      *      to keep track of the total pools weight when updating.
      *
      * @dev Set weight to zero to disable the pool.
@@ -473,7 +474,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
      * @param _weight new weight to set for the pool
      */
     function setWeight(uint256 _weight) external {
-        if (_msgSender() != factory) {
+        if (_msgSender() != poolController) {
             revert CommonErrors.OnlyFactory();
         }
         // update pool state using current weight value
