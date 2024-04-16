@@ -82,42 +82,27 @@ const config: HardhatUserConfig = {
   gasReporter: {
     enabled: process.env.REPORT_GAS ? true : false,
   },
-  // solidity: {
-  //   compilers: [
-  //     {
-  //       version: "0.8.20",
-  //       settings: {
-  //         // Disable the optimizer when debugging
-  //         // https://hardhat.org/hardhat-network/#solidity-optimizer-support
-  //         optimizer: {
-  //           enabled: true,
-  //           runs: 200,
-  //         },
-  //         evmVersion: "paris",
-  //       },
-  //     },
-  //   ],
-  // },
+
   solidity: {
     version: "0.8.20", // any version you want
     settings: {
-      viaIR: true,
+      // viaIR: true,
       optimizer: {
         enabled: true,
         runs: 200,
-        details: {
-          yulDetails: {
-            optimizerSteps: "u",
-          },
-        },
+        // details: {
+        //   yulDetails: {
+        //     optimizerSteps: "u",
+        //   },
+        // },
       },
-      evmVersion: "paris",
-      metadata: {
-        // do not include the metadata hash, since this is machine dependent
-        // and we want all generated code to be deterministic
-        // https://docs.soliditylang.org/en/v0.7.6/metadata.html
-        bytecodeHash: 'none',
-      },
+      // evmVersion: "paris",
+      // metadata: {
+      //   // do not include the metadata hash, since this is machine dependent
+      //   // and we want all generated code to be deterministic
+      //   // https://docs.soliditylang.org/en/v0.7.6/metadata.html
+      //   bytecodeHash: 'none',
+      // },
     },
   },
   docgen: {

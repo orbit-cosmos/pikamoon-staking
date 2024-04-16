@@ -15,4 +15,5 @@ library CommonErrors {
     error CanNotUpdateAtTheMoment();
     error OnlyFactory();
     error AlreadyRegistered();
+    error WrongHash();
 }

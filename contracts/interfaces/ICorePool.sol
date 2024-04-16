@@ -10,7 +10,7 @@ interface ICorePool {
 
     function unstake(uint256 _stakeId) external;
 
-    function claimRewards() external;
+    function claimRewards(uint256 _claimPercentage,  bytes memory _signature,uint256 _nonce) external;
 
 
     function sync() external;
@@ -101,13 +101,5 @@ interface ICorePool {
      */
     event LogSetEndTime(address indexed by, uint256 endTime);
 
-    /**
-     * @dev Fired in `changePoolWeight()`.
-     *
-     * @param by an address which executed an action
-     * @param poolAddress deployed pool instance address
-     * @param weight new pool weight
-     */
-    event LogChangePoolWeight(address indexed by, address indexed poolAddress, uint256 weight);
 
 }

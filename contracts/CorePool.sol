@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -28,8 +29,6 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         uint256 rewardsPerWeightPaid;
         /// @dev An array of holder's stakes
         Stake.Data[] stakes;
-        // gap for upgrades
-        uint256[10]  __gap;
     }
 
     /// @dev Used to calculate rewards.
@@ -40,7 +39,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     /// @dev Timestamp of the last rewards distribution event.
     uint256 public lastRewardsDistribution;
 
-    /// @dev Link to the pool token instance, for example PIKA or PIKA/ETH pair LP token.
+    /// @dev Link to the pool token instance, for example PIKA or PIKA/USDT pair LP token.
     address public poolToken;
     /// @dev Link to the reward token instance, for example PIKA
     address public rewardToken;
@@ -53,21 +52,25 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
      * you will increase the token weight of the locked tokens.
      * The maximum weight of a locked token is 2 ,
      * which occurs when you lock for a period of 12 months.
-     * @dev Pool weight, initial values are 200 for PIKA pool and 800 for PIKA/ETH.
+     * @dev Pool weight, initial values are 200 for PIKA pool and 800 for PIKA/USDT.
      */
     uint256 public weight;
 
     /// @dev Used to calculate rewards, keeps track of the tokens weight locked in staking.
     uint256 public globalStakeWeight;
 
-    /// @dev total pool token reserve. PIKA or PIKA/ETH pair LP token.
+    /// @dev total pool token reserve. PIKA or PIKA/USDT pair LP token.
     uint256 public totalTokenStaked;
-
-    /// @dev Token holder storage, maps token holder address to their data record.
-    mapping(address => User) public users;
 
     uint256 public upperBoundSlash;
     uint256 public lowerBoundSlash;
+
+    uint256 private MULTIPLYER;
+
+    /// @dev Token holder storage, maps token holder address to their data record.
+    mapping(address => User) public users;
+    mapping(bytes32 => bool) public signatureUsed;
+
 
     function __CorePool_init(
         address _poolToken,
@@ -85,7 +88,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         if (_factory == address(0)) {
             revert CommonErrors.ZeroAddress();
         }
-        //PIKA or PIKA/ETH pair LP token address.
+        //PIKA or PIKA/USDT pair LP token address.
         poolToken = _poolToken;
         //PIKA token address.
         rewardToken = _rewardToken;
@@ -99,6 +102,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
 
         upperBoundSlash = 900; // 90%
         lowerBoundSlash = 100; // 10%
+        MULTIPLYER = 1000; // 100%
     }
 
     /**
@@ -220,7 +224,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
             );
 
             uint256 unstakeValue = stakeValue -
-                ((stakeValue * earlyUnstakePercentage) / 1000);
+                ((stakeValue * earlyUnstakePercentage) / MULTIPLYER);
             // transfer slash amount
             IPikaMoon(poolToken).safeTransfer(
                 factory,
@@ -240,14 +244,21 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         // deletes stake struct
         delete user.stakes[_stakeId];
     }
-
+    /**
+     * @notice Calculates the penalty percentage for early unstaking based on the remaining locked time
+     * @dev This function returns a penalty percentage scaled by `MULTIPLYER`. The function applies bounds to the penalty, ensuring it does not fall below `lowerBoundSlash` or exceed `upperBoundSlash`.
+     * @param lockedFrom The timestamp when the stake was locked
+     * @param nowTime The current timestamp, representing the moment of the unstaking request
+     * @param lockedUntil The timestamp until which the stake was meant to be locked
+     * @return penaltyPercentage The penalty percentage for unstaking early, scaled by `MULTIPLYER`. If the stake period has ended, returns 0.
+     */
     function calculateEarlyUnstakePercentage(
         uint256 lockedFrom,
         uint256 nowTime,
         uint256 lockedUntil
     ) public view returns (uint256) {
         if (nowTime <= lockedUntil) {
-            uint256 percentageToSlash = (((lockedUntil - nowTime)) * 1000) /
+            uint256 percentageToSlash = (((lockedUntil - nowTime)) * MULTIPLYER) /
                 (lockedUntil - lockedFrom);
 
             if (percentageToSlash < lowerBoundSlash) {
@@ -263,11 +274,34 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     }
 
     /**
-     * @dev claims all pending staking rewards.
+     * @dev Prefixes a bytes32 hash with the string "\x19Ethereum Signed Message:\n32" and then hashes the result. 
+     * This is used to conform with the Ethereum signing standard (EIP-191).
+     * @param hash The original hash that needs to be prefixed and rehashed.
+     * @return The prefixed and rehashed bytes32 value.
      */
-    function claimRewards() external {
+    function prefixed(bytes32 hash) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
+    }
+     /**
+     * @notice Claims a percentage of the accrued rewards for the caller
+     * @dev This function handles the claim process by validating the signature and calculating the reward percentage
+     * @param _claimPercentage The percentage of the pending rewards to claim, scaled by the MULTIPLIER
+     * @param _signature Cryptographic signature to verify the authenticity of the claim
+     * @param nonce A unique identifier to prevent replay attacks
+     */
+    function claimRewards(uint256 _claimPercentage,  bytes memory _signature,uint256 nonce) external {
         // checks if the contract is in a paused state
         if (paused()) revert CommonErrors.ContractIsPaused();
+
+        assert(_claimPercentage <= MULTIPLYER);
+
+        bytes32 message = prefixed(keccak256(abi.encodePacked(_msgSender(),_claimPercentage,nonce)));
+        require(!signatureUsed[message]);
+        signatureUsed[message] = true;
+
+        if(ECDSA.recover(message, _signature) != owner()){
+            revert CommonErrors.WrongHash();
+        }
 
         // save gas by caching msg.sender
         address _staker = _msgSender();
@@ -284,19 +318,19 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         // if pending rewards is zero revert
         if (pendingRewardsToClaim == 0) return;
 
-        // clears user pending rewards
-        user.pendingRewards = 0;
+        uint256 toClaim = (user.pendingRewards * _claimPercentage)/MULTIPLYER;
+        user.pendingRewards -= toClaim;
 
         // transfer pending rewards to staker
 
         IPoolFactory(factory).transferRewardTokens(
             rewardToken,
             _staker,
-            pendingRewardsToClaim
+            toClaim
         );
 
         // emits an event
-        emit LogClaimRewards(_staker, pendingRewardsToClaim);
+        emit LogClaimRewards(_staker, toClaim);
     }
 
     /**
