@@ -36,6 +36,17 @@ contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         uint256 weight
     );
 
+    /**
+     * @dev Fired in `updatePikaPerSecond()`.
+     *
+     * @param newPikaPerSecond new Pika/second value
+     */
+    event LogUpdatePikaPerSecond(uint256 newPikaPerSecond);
+
+    /**
+     * @dev Fired in registerPool()
+     * @param addr an address of pool
+     */
     event LogRegisterPool(address indexed addr);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -59,6 +70,11 @@ contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         emit LogRegisterPool(_poolAddress);
     }
 
+    function updatePikaPerSecond(uint256 _pikaPerSecond) external onlyOwner {
+        if (_pikaPerSecond == 0) revert CommonErrors.ZeroAmount();
+        pikaPerSecond = _pikaPerSecond;
+        emit LogUpdatePikaPerSecond(_pikaPerSecond);
+    }
     function transferRewardTokens(
         address _token,
         address _to,
