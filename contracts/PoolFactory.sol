@@ -20,26 +20,6 @@ contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
      */
     uint256 public totalWeight;
 
-    /**
-     * @dev Pika/second decreases by 3% every seconds/update
-     *      an update is triggered by executing `updatePikaPerSecond` public function.
-     */
-    uint256 public secondsPerUpdate;
-
-    /**
-     * @dev End time is the last timestamp when Pika/second can be decreased;
-     *      it is implied that yield farming stops after that timestamp.
-     */
-    uint256 public endTime;
-
-    /**
-     * @dev Each time the Pika/second ratio gets updated, the timestamp
-     *      when the operation has occurred gets recorded into `lastRatioUpdate`.
-     * @dev This timestamp is then used to check if seconds/update `secondsPerUpdate`
-     *      has passed when decreasing yield reward by 3%.
-     */
-    uint256 public lastRatioUpdate;
-
     /// @dev Keeps track of registered pool addresses, maps pool address -> exists flag.
     mapping(address => bool) public poolExists;
 
@@ -59,19 +39,14 @@ contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     /**
      * @dev Fired in `updatePikaPerSecond()`.
      *
-     * @param by an address which executed an action
      * @param newPikaPerSecond new Pika/second value
      */
-    event LogUpdatePikaPerSecond(address indexed by, uint256 newPikaPerSecond);
+    event LogUpdatePikaPerSecond(uint256 newPikaPerSecond);
 
     /**
-     * @dev Fired in `setEndTime()`.
-     *
-     * @param by an address which executed the action
-     * @param endTime new endTime value
+     * @dev Fired in registerPool()
+     * @param addr an address of pool
      */
-    event LogSetEndTime(address indexed by, uint256 endTime);
-
     event LogRegisterPool(address indexed addr);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -83,9 +58,7 @@ contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         __Ownable_init(_msgSender());
         __UUPSUpgradeable_init();
         pikaPerSecond = 25.3678335870 gwei;
-        secondsPerUpdate = 14 days;
-        lastRatioUpdate = block.timestamp;
-        endTime = block.timestamp + (5 * 30 days); // 5 months
+
         totalWeight = 1000; //(direct staking)200 + (pool staking)800
     }
 
@@ -97,6 +70,11 @@ contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         emit LogRegisterPool(_poolAddress);
     }
 
+    function updatePikaPerSecond(uint256 _pikaPerSecond) external onlyOwner {
+        if (_pikaPerSecond == 0) revert CommonErrors.ZeroAmount();
+        pikaPerSecond = _pikaPerSecond;
+        emit LogUpdatePikaPerSecond(_pikaPerSecond);
+    }
     function transferRewardTokens(
         address _token,
         address _to,
@@ -106,43 +84,6 @@ contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             revert CommonErrors.AlreadyRegistered();
         }
         IPikaMoon(_token).safeTransfer(_to, _value);
-    }
-
-    /**
-     * @dev Verifies if `secondsPerUpdate` has passed since last PIKA/second
-     *      ratio update and if PIKA/second reward can be decreased by 3%.
-     *
-     * @return true if enough time has passed and `updatePIKAPerSecond` can be executed.
-     */
-    function shouldUpdateRatio() public view returns (bool) {
-        // if rewards farming period has ended
-        if (block.timestamp > endTime) {
-            // PIKA/second reward cannot be updated anymore
-            return false;
-        }
-
-        // check if seconds/update have passed since last update
-        return block.timestamp >= lastRatioUpdate + secondsPerUpdate;
-    }
-
-    /**
-     * @notice Decreases PIKA/second reward by 3%, can be executed
-     *      no more than once per `secondsPerUpdate` seconds.
-     */
-    function updatePIKAPerSecond() public {
-        // checks if ratio can be updated i.e. if seconds/update have passed
-        if (!shouldUpdateRatio()) revert CommonErrors.CanNotUpdateAtTheMoment();
-
-        // decreases PIKA/second reward by 3%.
-        // To achieve that we multiply by 97 and then
-        // divide by 100
-        pikaPerSecond = (pikaPerSecond * 97) / 100;
-
-        // set current timestamp as the last ratio update timestamp
-        lastRatioUpdate = block.timestamp;
-
-        // emits an event
-        emit LogUpdatePikaPerSecond(_msgSender(), pikaPerSecond);
     }
 
     /**
@@ -161,24 +102,6 @@ contract PoolFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
         // emit an event
         emit LogChangePoolWeight(_msgSender(), address(pool), weight);
-    }
-
-    /**
-     * @dev Updates rewards generation ending timestamp.
-     *
-     * @param _endTime new end time value to be stored
-     */
-    function setEndTimeForPikaPerSec(uint256 _endTime) external onlyOwner {
-        // checks if _endTime is a timestap after the last time that
-        // PIKA/second has been updated
-        if (!(_endTime > lastRatioUpdate)) {
-            revert CommonErrors.WrongEndTime();
-        }
-        // updates endTime state var
-        endTime = _endTime;
-
-        // emits an event
-        emit LogSetEndTime(_msgSender(), _endTime);
     }
 
     /**
