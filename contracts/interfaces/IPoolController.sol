@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.20;
 
-interface IPoolFactory {
+interface IPoolController {
     function owner() external view returns (address);
 
     function pikaPerSecond() external view returns (uint192);

@@ -14,7 +14,7 @@ contract PikaStakingPool is Initializable, UUPSUpgradeable, CorePool {
     function initialize(
         address _poolToken,
         address _rewardToken,
-        address _factory,
+        address _poolController,
         uint256 _weight
     ) external initializer {
         __Ownable_init(msg.sender);
@@ -23,7 +23,7 @@ contract PikaStakingPool is Initializable, UUPSUpgradeable, CorePool {
         __CorePool_init(
             _poolToken,
             _rewardToken,
-            _factory,
+            _poolController,
             _weight
         );
     }

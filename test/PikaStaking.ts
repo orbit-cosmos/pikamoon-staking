@@ -1,7 +1,7 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
-import { PikaMoon, DirectStaking,PoolFactory } from "../typechain-types";
+import { PikaMoon, DirectStaking,PoolController } from "../typechain-types";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 
@@ -27,20 +27,20 @@ describe("Pika Staking", function () {
       { initializer: "initialize" },
     );
 
-    const PoolFactory = await ethers.getContractFactory("PoolFactory");
-    const poolFactory = await upgrades.deployProxy(PoolFactory, [], {
+    const PoolController = await ethers.getContractFactory("PoolController");
+    const poolController = await upgrades.deployProxy(PoolController, [], {
       initializer: "initialize",
     });
 
     const PikaStaking = await ethers.getContractFactory("PikaStakingPool");
     const staking = await upgrades.deployProxy(
       PikaStaking,
-      [token.target, token.target, poolFactory.target, 200],
+      [token.target, token.target, poolController.target, 200],
       { initializer: "initialize" },
     );
 
-    await poolFactory.registerPool(staking.target);
-    await token.mint(poolFactory.target, toGWei(5_000_000_000));
+    await poolController.registerPool(staking.target);
+    await token.mint(poolController.target, toGWei(5_000_000_000));
     await token.mint(account2.address, toGWei(50));
     await token.mint(account1.address, toGWei(50));
     await token.excludeFromTax(staking.target, true);
