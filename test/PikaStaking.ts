@@ -32,7 +32,7 @@ describe("Pika Staking", function () {
       initializer: "initialize",
     });
 
-    const PikaStaking = await ethers.getContractFactory("DirectStaking");
+    const PikaStaking = await ethers.getContractFactory("PikaStakingPool");
     const staking = await upgrades.deployProxy(
       PikaStaking,
       [token.target, token.target, poolFactory.target, 200],
