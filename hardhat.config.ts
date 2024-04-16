@@ -8,7 +8,6 @@ import "solidity-docgen";
 import "hardhat-gas-reporter";
 import "hardhat-contract-sizer";
 import "@nomiclabs/hardhat-solhint";
-import "@nomicfoundation/hardhat-foundry";
 import "@openzeppelin/hardhat-upgrades";
 const alchemyKey = process.env.ALCHEMY_KEY;
 const pk = process.env.PK;

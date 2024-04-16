@@ -61,11 +61,12 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
 
     /// @dev total pool token reserve. PIKA or PIKA/USDT pair LP token.
     uint256 public totalTokenStaked;
-
+    /// @dev upper Bound percentage for early unstake penalty.
     uint256 public upperBoundSlash;
+    /// @dev lower Bound percentage for early unstake penalty.
     uint256 public lowerBoundSlash;
 
-    uint256 private MULTIPLYER;
+    uint256 private multiplier;  // 100%
 
     /// @dev Token holder storage, maps token holder address to their data record.
     mapping(address => User) public users;
@@ -102,7 +103,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
 
         upperBoundSlash = 900; // 90%
         lowerBoundSlash = 100; // 10%
-        MULTIPLYER = 1000; // 100%
+        multiplier = 1000; // 100%
     }
 
     /**
@@ -224,7 +225,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
             );
 
             uint256 unstakeValue = stakeValue -
-                ((stakeValue * earlyUnstakePercentage) / MULTIPLYER);
+                ((stakeValue * earlyUnstakePercentage) / multiplier);
             // transfer slash amount
             IPikaMoon(poolToken).safeTransfer(
                 factory,
@@ -246,11 +247,11 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     }
     /**
      * @notice Calculates the penalty percentage for early unstaking based on the remaining locked time
-     * @dev This function returns a penalty percentage scaled by `MULTIPLYER`. The function applies bounds to the penalty, ensuring it does not fall below `lowerBoundSlash` or exceed `upperBoundSlash`.
+     * @dev This function returns a penalty percentage scaled by `multiplier`. The function applies bounds to the penalty, ensuring it does not fall below `lowerBoundSlash` or exceed `upperBoundSlash`.
      * @param lockedFrom The timestamp when the stake was locked
      * @param nowTime The current timestamp, representing the moment of the unstaking request
      * @param lockedUntil The timestamp until which the stake was meant to be locked
-     * @return penaltyPercentage The penalty percentage for unstaking early, scaled by `MULTIPLYER`. If the stake period has ended, returns 0.
+     * @return penaltyPercentage The penalty percentage for unstaking early, scaled by `multiplier`. If the stake period has ended, returns 0.
      */
     function calculateEarlyUnstakePercentage(
         uint256 lockedFrom,
@@ -258,7 +259,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         uint256 lockedUntil
     ) public view returns (uint256) {
         if (nowTime <= lockedUntil) {
-            uint256 percentageToSlash = (((lockedUntil - nowTime)) * MULTIPLYER) /
+            uint256 percentageToSlash = (((lockedUntil - nowTime)) * multiplier) /
                 (lockedUntil - lockedFrom);
 
             if (percentageToSlash < lowerBoundSlash) {
@@ -293,7 +294,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         // checks if the contract is in a paused state
         if (paused()) revert CommonErrors.ContractIsPaused();
 
-        assert(_claimPercentage <= MULTIPLYER);
+        assert(_claimPercentage <= multiplier);
 
         bytes32 message = prefixed(keccak256(abi.encodePacked(_msgSender(),_claimPercentage,nonce)));
         require(!signatureUsed[message]);
@@ -318,7 +319,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         // if pending rewards is zero revert
         if (pendingRewardsToClaim == 0) return;
 
-        uint256 toClaim = (user.pendingRewards * _claimPercentage)/MULTIPLYER;
+        uint256 toClaim = (user.pendingRewards * _claimPercentage)/multiplier;
         user.pendingRewards -= toClaim;
 
         // transfer pending rewards to staker

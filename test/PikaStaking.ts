@@ -15,7 +15,7 @@ function encodeAndHash(address: Address | string, amount: bigint | number,nonce:
     [address, amount,nonce],
   );
 }
-describe("Pika Staking contract testcases", function () {
+describe("Pika Staking", function () {
   async function deployICOFixture() {
     const [owner, stakingReward, account1, account2] =
       await ethers.getSigners();
@@ -48,7 +48,7 @@ describe("Pika Staking contract testcases", function () {
     return { token, staking, owner, account1, account2 };
   }
 
-  describe("fn Stake()", async function () {
+  describe("test cases", async function () {
     let token: PikaMoon,
       staking: DirectStaking,
       owner: HardhatEthersSigner,
