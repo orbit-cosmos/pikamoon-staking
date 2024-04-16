@@ -5,7 +5,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./CorePool.sol";
 
-contract DirectStaking is Initializable, UUPSUpgradeable, CorePool {
+contract PikaStakingPool is Initializable, UUPSUpgradeable, CorePool {
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
