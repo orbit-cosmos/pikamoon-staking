@@ -11,8 +11,6 @@ library CommonErrors {
     error ZeroAddress();
     error ContractIsPaused();
     error InvalidLockDuration();
-    error WrongEndTime();
-    error CanNotUpdateAtTheMoment();
     error OnlyFactory();
     error AlreadyRegistered();
     error WrongHash();

@@ -66,10 +66,11 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     /// @dev lower Bound percentage for early unstake penalty.
     uint256 public lowerBoundSlash;
 
-    uint256 private multiplier;  // 100%
+    uint256 private multiplier;  // 1000 = 100%
 
     /// @dev Token holder storage, maps token holder address to their data record.
     mapping(address => User) public users;
+    /// @dev mapping to prevent signature replay
     mapping(bytes32 => bool) public signatureUsed;
 
 
@@ -356,9 +357,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         // is outdated and we need to recalculate it in order to calculate pending rewards correctly
         if (_now256() > _lastRewardsDistribution && globalStakeWeight != 0) {
             IPoolFactory _factory = IPoolFactory(factory);
-            uint256 secondsPassed = _now256() > _factory.endTime()
-                ? _factory.endTime() - _lastRewardsDistribution
-                : _now256() - _lastRewardsDistribution;
+            uint256 secondsPassed = _now256() - _lastRewardsDistribution;
 
             uint256 pikaRewards = (secondsPassed *
                 _factory.pikaPerSecond() *
@@ -421,17 +420,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
      */
     function _sync() internal {
         IPoolFactory _factory = IPoolFactory(factory);
-        // update PIKA per second value
-        if (_factory.shouldUpdateRatio()) {
-            _factory.updatePIKAPerSecond();
-        }
-
-        // check bound conditions and if these are not met -
-        // exit silently, without emitting an event
-        uint256 endTime = _factory.endTime();
-        if (lastRewardsDistribution >= endTime) {
-            return;
-        }
+       
         if (_now256() <= lastRewardsDistribution) {
             return;
         }
@@ -442,7 +431,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         }
 
         // to calculate the reward we need to know how many seconds passed, and reward per second
-        uint256 currentTimestamp = _now256() > endTime ? endTime : _now256();
+        uint256 currentTimestamp =  _now256();
         uint256 secondsPassed = currentTimestamp - lastRewardsDistribution;
 
         // calculate the reward
