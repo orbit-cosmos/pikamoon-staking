@@ -16,7 +16,7 @@ function encodeAndHash(address: Address | string, amount: bigint | number,nonce:
   );
 }
 describe("Pika Staking", function () {
-  async function deployICOFixture() {
+  async function deployFixture() {
     const [owner, stakingReward, account1, account2] =
       await ethers.getSigners();
     const pikamoon = await ethers.getContractFactory("PikaMoon");
@@ -55,7 +55,7 @@ describe("Pika Staking", function () {
       account1: HardhatEthersSigner;
 
     before(async () => {
-      let fixture = await loadFixture(deployICOFixture);
+      let fixture = await loadFixture(deployFixture);
       token = fixture?.token;
       staking = fixture?.staking;
       owner = fixture?.owner;
