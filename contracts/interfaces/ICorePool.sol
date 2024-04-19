@@ -1,17 +1,21 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.20;
-import '../libraries/Stake.sol';
+import "../libraries/Stake.sol";
 
 interface ICorePool {
-
     /* ========== MUTATIVE FUNCTIONS ========== */
 
     function stake(uint256 _value, uint256 _lockDuration) external;
 
     function unstake(uint256 _stakeId) external;
 
-    function claimRewards(uint256 _claimPercentage,  bytes memory _signature,uint256 _nonce) external;
-
+    function claimRewards(
+        uint256 _claimPercentage,
+        bool _restakeLeftOver,
+        uint256 _lockDuration,
+        bytes memory _signature,
+        uint256 _nonce
+    ) external;
 
     function sync() external;
 
@@ -19,22 +23,24 @@ interface ICorePool {
 
     /* ========== RESTRICTED FUNCTIONS ========== */
 
-
-
     function pause(bool _shouldPause) external;
 
     /* ========== READ FUNCTIONS ========== */
 
-
-    function pendingRewards(address _staker) external view returns (uint256 pendingYield);
+    function pendingRewards(
+        address _staker
+    ) external view returns (uint256 pendingYield);
 
     function balanceOf(address _user) external view returns (uint256 balance);
 
     function getStakesLength(address _user) external view returns (uint256);
 
-    function getStake(address _user, uint256 _stakeId) external view returns (Stake.Data memory);
+    function getStake(
+        address _user,
+        uint256 _stakeId
+    ) external view returns (Stake.Data memory);
 
-    function weight() external view returns(uint256);
+    function weight() external view returns (uint256);
 
     /* ========== EVENTS ========== */
 
@@ -45,7 +51,12 @@ interface ICorePool {
      * @param value value of tokens staked
      * @param lockUntil timestamp indicating when tokens should unlock (max 2 years)
      */
-    event LogStake(address indexed from, uint256 stakeId, uint256 value, uint256 lockUntil);
+    event LogStake(
+        address indexed from,
+        uint256 stakeId,
+        uint256 value,
+        uint256 lockUntil
+    );
     /**
      * @dev Fired in `_updateRewards()`.
      *
@@ -61,7 +72,12 @@ interface ICorePool {
      * @param stakeId id value of the stake
      * @param value number of tokens unstaked
      */
-    event LogUnstake(address indexed to, uint256 stakeId, uint256 value, bool isEarlyUnstake);
+    event LogUnstake(
+        address indexed to,
+        uint256 stakeId,
+        uint256 value,
+        bool isEarlyUnstake
+    );
     /**
      * @dev Fired in `updatePIKAPerSecond()`.
      *
@@ -76,7 +92,11 @@ interface ICorePool {
      * @param yieldRewardsPerWeight updated yield rewards per weight value
      * @param lastYieldDistribution usually, current timestamp
      */
-    event LogSync(address indexed by, uint256 yieldRewardsPerWeight, uint256 lastYieldDistribution);
+    event LogSync(
+        address indexed by,
+        uint256 yieldRewardsPerWeight,
+        uint256 lastYieldDistribution
+    );
 
     /**
      * @dev Fired in `updatePIKAPerSecond()`.
@@ -100,6 +120,4 @@ interface ICorePool {
      * @param endTime new endTime value
      */
     event LogSetEndTime(address indexed by, uint256 endTime);
-
-
 }

@@ -46,7 +46,6 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     /// @dev Link to the pool controller IPoolController instance.
     address public poolController;
 
-
     /**  @notice you can lock your tokens for a period between 1 and 12 months.
      * This changes your token weight. By increasing the duration of your lock,
      * you will increase the token weight of the locked tokens.
@@ -66,14 +65,13 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     /// @dev lower Bound percentage for early unstake penalty.
     uint256 public lowerBoundSlash;
 
-    uint256 private multiplier;  // 1000 = 100%
+    uint256 private multiplier; // 1000 = 100%
 
     /// @dev Token holder storage, maps token holder address to their data record.
     mapping(address => User) public users;
-    
+
     /// @dev mapping to prevent signature replay
     mapping(bytes32 => bool) public signatureUsed;
-
 
     function __CorePool_init(
         address _poolToken,
@@ -87,7 +85,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         if (_rewardToken == address(0)) {
             revert CommonErrors.ZeroAddress();
         }
-    
+
         if (_poolController == address(0)) {
             revert CommonErrors.ZeroAddress();
         }
@@ -247,6 +245,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         // deletes stake struct
         delete user.stakes[_stakeId];
     }
+
     /**
      * @notice Calculates the penalty percentage for early unstaking based on the remaining locked time
      * @dev This function returns a penalty percentage scaled by `multiplier`. The function applies bounds to the penalty, ensuring it does not fall below `lowerBoundSlash` or exceed `upperBoundSlash`.
@@ -261,8 +260,8 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         uint256 lockedUntil
     ) public view returns (uint256) {
         if (nowTime <= lockedUntil) {
-            uint256 percentageToSlash = (((lockedUntil - nowTime)) * multiplier) /
-                (lockedUntil - lockedFrom);
+            uint256 percentageToSlash = (((lockedUntil - nowTime)) *
+                multiplier) / (lockedUntil - lockedFrom);
 
             if (percentageToSlash < lowerBoundSlash) {
                 return lowerBoundSlash;
@@ -277,32 +276,53 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     }
 
     /**
-     * @dev Prefixes a bytes32 hash with the string "\x19Ethereum Signed Message:\n32" and then hashes the result. 
+     * @dev Prefixes a bytes32 hash with the string "\x19Ethereum Signed Message:\n32" and then hashes the result.
      * This is used to conform with the Ethereum signing standard (EIP-191).
      * @param hash The original hash that needs to be prefixed and rehashed.
      * @return The prefixed and rehashed bytes32 value.
      */
     function prefixed(bytes32 hash) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
+        return
+            keccak256(
+                abi.encodePacked("\x19Ethereum Signed Message:\n32", hash)
+            );
     }
-     /**
+
+    /**
      * @notice Claims a percentage of the accrued rewards for the caller
      * @dev This function handles the claim process by validating the signature and calculating the reward percentage
      * @param _claimPercentage The percentage of the pending rewards to claim, scaled by the MULTIPLIER
      * @param _signature Cryptographic signature to verify the authenticity of the claim
      * @param nonce A unique identifier to prevent replay attacks
      */
-    function claimRewards(uint256 _claimPercentage,  bytes memory _signature,uint256 nonce) external {
+    function claimRewards(
+        uint256 _claimPercentage,
+        bool _restakeLeftOver,
+        uint256 _lockDuration,
+        bytes memory _signature,
+        uint256 nonce
+    ) external {
+        // lock duration recommended to be of 1 year to mitigate protocol abuse
         // checks if the contract is in a paused state
         if (paused()) revert CommonErrors.ContractIsPaused();
 
         assert(_claimPercentage <= multiplier);
 
-        bytes32 message = prefixed(keccak256(abi.encodePacked(_msgSender(),_claimPercentage,nonce)));
+        bytes32 message = prefixed(
+            keccak256(
+                abi.encodePacked(
+                    _msgSender(),
+                    _claimPercentage,
+                    _restakeLeftOver,
+                    _lockDuration,
+                    nonce
+                )
+            )
+        );
         require(!signatureUsed[message]);
         signatureUsed[message] = true;
 
-        if(ECDSA.recover(message, _signature) != owner()){
+        if (ECDSA.recover(message, _signature) != owner()) {
             revert CommonErrors.WrongHash();
         }
 
@@ -315,25 +335,77 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         // get link to a user data structure, we will write into it later
         User storage user = users[_staker];
 
-        // check pending rewards rewards to claim and save to memory
-        uint256 pendingRewardsToClaim = user.pendingRewards;
-
         // if pending rewards is zero revert
-        if (pendingRewardsToClaim == 0) return;
+        if (user.pendingRewards == 0) return;
 
-        uint256 toClaim = (user.pendingRewards * _claimPercentage)/multiplier;
-        user.pendingRewards -= toClaim;
+        if (_claimPercentage != 0) {
+            uint256 toClaim = (user.pendingRewards * _claimPercentage) /
+                multiplier;
 
-        // transfer pending rewards to staker
+            user.pendingRewards -= toClaim;
+            // transfer pending rewards to staker
 
-        IPoolController(poolController).transferRewardTokens(
-            rewardToken,
-            _staker,
-            toClaim
-        );
+            IPoolController(poolController).transferRewardTokens(
+                rewardToken,
+                _staker,
+                toClaim
+            );
+            // emits an event
+            emit LogClaimRewards(_staker, toClaim);
+        }
+        if (_restakeLeftOver) {
+            if (
+                !(_lockDuration >= Stake.MIN_STAKE_PERIOD &&
+                    _lockDuration <= Stake.MAX_STAKE_PERIOD)
+            ) {
+                revert CommonErrors.InvalidLockDuration();
+            }
 
-        // emits an event
-        emit LogClaimRewards(_staker, toClaim);
+            // calculates until when a stake is going to be locked
+            uint256 lockUntil = _now256() + _lockDuration;
+
+            // calculate stake weight. same as weight function in stake.sol library
+            uint256 stakeWeight = (((lockUntil - _now256()) *
+                Stake.WEIGHT_MULTIPLIER) /
+                Stake.MAX_STAKE_PERIOD +
+                Stake.BASE_WEIGHT) * user.pendingRewards;
+            // makes sure stakeWeight is valid
+            assert(stakeWeight > 0);
+
+            // create and save the stake (append it to stakes array)
+            Stake.Data memory userStake = Stake.Data({
+                value: user.pendingRewards,
+                lockedFrom: _now256(),
+                lockedUntil: lockUntil
+            });
+
+            // pushes new stake to `stakes` array
+            user.stakes.push(userStake);
+
+            // update user weight
+            user.userTotalWeight += stakeWeight;
+
+            // update global weight value
+            globalStakeWeight += stakeWeight;
+
+            // update pool reserve
+            totalTokenStaked += user.pendingRewards;
+
+            IPoolController(poolController).transferRewardTokens(
+                rewardToken,
+                address(this),
+                user.pendingRewards
+            );
+
+            // emits an event
+            emit LogStake(
+                _msgSender(),
+                (user.stakes.length - 1),
+                user.pendingRewards,
+                lockUntil
+            );
+            user.pendingRewards = 0;
+        }
     }
 
     /**
@@ -421,7 +493,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
      */
     function _sync() internal {
         IPoolController _poolController = IPoolController(poolController);
-       
+
         if (_now256() <= lastRewardsDistribution) {
             return;
         }
@@ -432,7 +504,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         }
 
         // to calculate the reward we need to know how many seconds passed, and reward per second
-        uint256 currentTimestamp =  _now256();
+        uint256 currentTimestamp = _now256();
         uint256 secondsPassed = currentTimestamp - lastRewardsDistribution;
 
         // calculate the reward
@@ -551,8 +623,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         return users[_user].stakes[_stakeId];
     }
 
-
-     /**
+    /**
      * @dev Empty reserved space in storage. The size of the __gap array is calculated so that
      *      the amount of storage used by a contract always adds up to the 50.
      *      See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
