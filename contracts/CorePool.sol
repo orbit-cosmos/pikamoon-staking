@@ -45,6 +45,8 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     address public rewardToken;
     /// @dev Link to the pool controller IPoolController instance.
     address public poolController;
+    /// @dev verifier Address for ECDSA claim verification.
+    address public verifierAddress;
 
     /**  @notice you can lock your tokens for a period between 1 and 12 months.
      * This changes your token weight. By increasing the duration of your lock,
@@ -89,6 +91,9 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         if (_poolController == address(0)) {
             revert CommonErrors.ZeroAddress();
         }
+
+        verifierAddress = owner();
+
         //PIKA or PIKA/USDT pair LP token address.
         poolToken = _poolToken;
         //PIKA token address.
@@ -327,7 +332,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         require(!signatureUsed[message]);
         signatureUsed[message] = true;
 
-        if (ECDSA.recover(message, _signature) != owner()) {
+        if (ECDSA.recover(message, _signature) != verifierAddress) {
             revert CommonErrors.WrongHash();
         }
 
@@ -572,6 +577,15 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
             _unpause();
         }
     }
+
+    /**
+     * @dev set verification address for ECDSA claim verification.
+     * @param _verifierAddress verifier Address 
+     */
+    function setVerifierAddress(address _verifierAddress) external onlyOwner {
+        verifierAddress = _verifierAddress;
+    }
+
 
 
     /**

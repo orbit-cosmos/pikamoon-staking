@@ -57,6 +57,14 @@ address poolController
 
 _Link to the pool controller IPoolController instance._
 
+### verifierAddress
+
+```solidity
+address verifierAddress
+```
+
+_verifier Address for ECDSA claim verification._
+
 ### weight
 
 ```solidity
@@ -310,6 +318,20 @@ _Set paused/unpaused state in the staking contract._
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | _shouldPause | bool | whether the contract should be paused/unpausd |
+
+### setVerifierAddress
+
+```solidity
+function setVerifierAddress(address _verifierAddress) external
+```
+
+_set verification address for ECDSA claim verification._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _verifierAddress | address | verifier Address |
 
 ### balanceOf
 

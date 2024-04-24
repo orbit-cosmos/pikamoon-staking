@@ -16,10 +16,22 @@ This project is about pikamoon staking smart contract.
 # User Operations:
 
 - User can stake Pikamoon tokens and get Pikamoon tokens in rewards.
-- User can unstake or early unstake.
-- In case of early unstake, user will pay penalty.
-- User can claim rewards right after stake.
-- User can choose to claim partial reward and restake the remaining rewards.
+    * Staking duration can be between 1 month to 12 months.
+    * Each stake done will be treated as a new entry and previous stake cannot be altered such that reduced or increased.
+
+- User can unstake. 
+    * Un-staking can be done when staking duration ends for a specific entry resulting in entire stake for the specific entry to be retrieved from the contract.
+
+- User can early unstake.
+    * Early un-staking can be done before staking duration ends for a specific entry resulting in calculated penalty according to time left being deducted and the remaining amount will be retrieved from the contract. The penalty will be send to the pool controller available for distribution to other stakers.
+    * Early un-stake penalty ranges from 10% to 90% slash in staking amount.
+
+- User can claim rewards.
+    * The rewards will be calculated and will be available as time passes.
+    * Rewards can be claimed only if they are verified by the backend to have contributed some effort e.g. playing the game, following socials, referring friends to stake. 
+    * The backend decides how much effort was put in resulting in percentage of the claim to be rewarded.
+    * A user story where a user is eligible to claim 60% of the rewards the remaining 40% of the rewards can be either kept in the pool for further accumulation or re staked for a set period of time decided by the backend.
+    * This will be achieved by using ECDSA signatures and verification on contract end.
 
 # Admin Operations:
 
@@ -27,3 +39,4 @@ This project is about pikamoon staking smart contract.
 - Admin can create/register staking pool.
 - Admin can change Pool Weight.
 - Admin can change Pika Per Second.
+- Admin can set verification address for ECDSA claim functionality.

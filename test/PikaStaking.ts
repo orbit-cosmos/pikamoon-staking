@@ -24,8 +24,7 @@ function encodeAndHash(
 }
 describe("Pika Staking", function () {
   async function deployFixture() {
-    const [owner, _, account1, account2] =
-      await ethers.getSigners();
+    const [owner, _, account1, account2,verifierAddress] = await ethers.getSigners();
     const pikamoon = await ethers.getContractFactory("PikaMoon");
 
     const token = await upgrades.deployProxy(
@@ -41,25 +40,29 @@ describe("Pika Staking", function () {
 
     const PikaStaking = await ethers.getContractFactory("PikaStakingPool");
 
-    await expect(upgrades.deployProxy(
-      PikaStaking,
-      [ZeroAddress, token.target, poolController.target, 200],
-      { initializer: "initialize" },
-    )).to.be.reverted
+    await expect(
+      upgrades.deployProxy(
+        PikaStaking,
+        [ZeroAddress, token.target, poolController.target, 200],
+        { initializer: "initialize" },
+      ),
+    ).to.be.reverted;
 
+    await expect(
+      upgrades.deployProxy(
+        PikaStaking,
+        [token.target, ZeroAddress, poolController.target, 200],
+        { initializer: "initialize" },
+      ),
+    ).to.be.reverted;
+    await expect(
+      upgrades.deployProxy(
+        PikaStaking,
+        [token.target, token.target, ZeroAddress, 200],
+        { initializer: "initialize" },
+      ),
+    ).to.be.reverted;
 
-    await expect(upgrades.deployProxy(
-      PikaStaking,
-      [ token.target,ZeroAddress, poolController.target, 200],
-      { initializer: "initialize" },
-    )).to.be.reverted
-    await expect(upgrades.deployProxy(
-      PikaStaking,
-      [ token.target,token.target, ZeroAddress, 200],
-      { initializer: "initialize" },
-    )).to.be.reverted
-
-  
     const staking = await upgrades.deployProxy(
       PikaStaking,
       [token.target, token.target, poolController.target, 200],
@@ -72,7 +75,7 @@ describe("Pika Staking", function () {
     await token.mint(account1.address, toGWei(50));
     await token.excludeFromTax(staking.target, true);
 
-    return { token, staking, owner, account1, account2,poolController };
+    return { token, staking, owner, account1, account2, poolController,verifierAddress };
   }
 
   describe("test cases", async function () {
@@ -80,6 +83,7 @@ describe("Pika Staking", function () {
       staking: DirectStaking,
       owner: HardhatEthersSigner,
       poolController: PoolController,
+      verifierAddress: HardhatEthersSigner,
       account1: HardhatEthersSigner;
 
     before(async () => {
@@ -87,8 +91,9 @@ describe("Pika Staking", function () {
       token = fixture?.token;
       staking = fixture?.staking;
       owner = fixture?.owner;
-      account1 = fixture?.account1; 
-      poolController = fixture?.poolController; 
+      account1 = fixture?.account1;
+      poolController = fixture?.poolController;
+      verifierAddress = fixture?.verifierAddress;
     });
 
     // ************* stake **************
@@ -142,14 +147,18 @@ describe("Pika Staking", function () {
       expect(await token.balanceOf(account1.address)).to.be.equal(
         stakingAmount,
       );
-      expect(await staking.getStakesLength(account1.address)).to.be.equal(0)
+      expect(await staking.getStakesLength(account1.address)).to.be.equal(0);
       await expect(
         staking.connect(account1).stake(stakingAmount, ONE_MONTH_IN_SECS),
-        ).to.emit(staking, "LogStake");
-        expect((await staking.getStake(account1.address,0))[0]).to.be.eq(stakingAmount)
-        expect(await staking.getStakesLength(account1.address)).to.be.equal(1)
+      ).to.emit(staking, "LogStake");
+      expect((await staking.getStake(account1.address, 0))[0]).to.be.eq(
+        stakingAmount,
+      );
+      expect(await staking.getStakesLength(account1.address)).to.be.equal(1);
       expect(await token.balanceOf(account1.address)).to.be.equal("0");
-      expect(await staking.balanceOf(account1.address)).to.be.equal(stakingAmount);
+      expect(await staking.balanceOf(account1.address)).to.be.equal(
+        stakingAmount,
+      );
     });
 
     // ************* claim **************
@@ -225,9 +234,8 @@ describe("Pika Staking", function () {
           .connect(account1)
           .claimRewards(500, true, ONE_MONTH_IN_SECS, signature, time),
       ).to.emit(staking, "LogClaimRewards");
-      expect(await staking.getStakesLength(account1.address)).to.be.equal(2)
+      expect(await staking.getStakesLength(account1.address)).to.be.equal(2);
     });
-
 
     it("should allow claim with out restake", async () => {
       let time = new Date().getTime();
@@ -245,7 +253,7 @@ describe("Pika Staking", function () {
           .connect(account1)
           .claimRewards(500, false, ONE_MONTH_IN_SECS, signature, time),
       ).to.emit(staking, "LogClaimRewards");
-      expect(await staking.getStakesLength(account1.address)).to.be.equal(2)
+      expect(await staking.getStakesLength(account1.address)).to.be.equal(2);
     });
 
     it("should revert because of signature replay protection on claim", async () => {
@@ -264,7 +272,7 @@ describe("Pika Staking", function () {
           .connect(account1)
           .claimRewards(500, true, ONE_MONTH_IN_SECS, signature, time),
       ).to.emit(staking, "LogClaimRewards");
-      expect(await staking.getStakesLength(account1.address)).to.be.equal(3)
+      expect(await staking.getStakesLength(account1.address)).to.be.equal(3);
       await expect(
         staking
           .connect(account1)
@@ -273,7 +281,7 @@ describe("Pika Staking", function () {
     });
 
     // ************* unstake **************
-  
+
     it("should not allow unstake if contract is paused", async () => {
       await staking.pause(true);
       await expect(
@@ -297,9 +305,15 @@ describe("Pika Staking", function () {
 
       await staking.connect(account1).stake(stakingAmount, ONE_MONTH_IN_SECS);
 
-      expect(await staking.getStakesLength(account1.address)).to.be.equal(4)
-      let now = Math.floor(Date.now()/1000);
-      expect(await staking.calculateEarlyUnstakePercentage(now,now,now+ONE_MONTH_IN_SECS)).to.be.equal(900)
+      expect(await staking.getStakesLength(account1.address)).to.be.equal(4);
+      let now = Math.floor(Date.now() / 1000);
+      expect(
+        await staking.calculateEarlyUnstakePercentage(
+          now,
+          now,
+          now + ONE_MONTH_IN_SECS,
+        ),
+      ).to.be.equal(900);
 
       await expect(staking.connect(account1).unstake(3)).to.emit(
         staking,
@@ -307,61 +321,83 @@ describe("Pika Staking", function () {
       );
     });
 
-        // ************* calculateEarlyUnstakePercentage **************
+    // ************* calculateEarlyUnstakePercentage **************
     it("should calculate Early Unstake Percentage ", async () => {
       const ONE_MONTH_IN_SECS = 30 * 24 * 60 * 60;
 
-      let now = Math.floor(Date.now()/1000);
-    expect(await staking.calculateEarlyUnstakePercentage(ONE_MONTH_IN_SECS-1,now,now+ONE_MONTH_IN_SECS)).to.be.equal(100)
-    })
+      let now = Math.floor(Date.now() / 1000);
+      expect(
+        await staking.calculateEarlyUnstakePercentage(
+          ONE_MONTH_IN_SECS - 1,
+          now,
+          now + ONE_MONTH_IN_SECS,
+        ),
+      ).to.be.equal(100);
+      await staking.calculateEarlyUnstakePercentage(
+        now,
+        (now + now + ONE_MONTH_IN_SECS) / 2,
+        now + ONE_MONTH_IN_SECS,
+      );
+      await staking.calculateEarlyUnstakePercentage(
+        now,
+        now * 1000,
+        now + ONE_MONTH_IN_SECS,
+      );
+    });
 
-        // ************* sync **************
+    // ************* sync **************
     it("should call sync", async () => {
-    
       await expect(staking.connect(account1).sync()).to.emit(
         staking,
         "LogSync",
       );
     });
 
-
     it("should not call sync if contract is paused", async () => {
       await staking.pause(true);
-      await expect(staking.connect(account1).sync()).to.be.reverted
+      await expect(staking.connect(account1).sync()).to.be.reverted;
     });
 
-   // ************* pause **************
+    // ************* pause **************
     it("should revert is caller is not owner for function paused", async () => {
       await expect(staking.connect(account1).pause(true)).to.be.reverted;
     });
 
-
-   // ************* pendingRewards **************
+    // ************* pendingRewards **************
     it("should revert is caller is not owner for function paused", async () => {
-      expect(await staking.connect(account1).pendingRewards(account1.address)).to.be.eq(13150745814301403n)
+      expect(
+        await staking.connect(account1).pendingRewards(account1.address),
+      ).to.be.eq(13150745814301403n);
     });
-
-
-
-
 
     // ************* admin actions **************
     it("should revert if the caller is not pool", async () => {
-      await expect(staking.connect(account1).setWeight(201)).to.be.revertedWithCustomError(staking,"OnlyFactory")
+      await expect(
+        staking.connect(account1).setWeight(201),
+      ).to.be.revertedWithCustomError(staking, "OnlyFactory");
     });
     it("should revert non owner try to change pool weight", async () => {
-      await expect(poolController.connect(account1).changePoolWeight(staking.target,201)).to.be.reverted
+      await expect(
+        poolController.connect(account1).changePoolWeight(staking.target, 201),
+      ).to.be.reverted;
     });
     it("should allow to change pool weight", async () => {
-      await poolController.changePoolWeight(staking.target,201)
-      expect(await poolController.totalWeight()).to.be.equal(1001)
+      await poolController.changePoolWeight(staking.target, 201);
+      expect(await poolController.totalWeight()).to.be.equal(1001);
     });
     it("should revert non owner try to change pika per sec", async () => {
-      await expect(poolController.connect(account1).updatePikaPerSecond(toGWei(0.1))).to.be.reverted
+      await expect(
+        poolController.connect(account1).updatePikaPerSecond(toGWei(0.1)),
+      ).to.be.reverted;
     });
     it("should allow to change pika per sec", async () => {
-      await poolController.updatePikaPerSecond(toGWei(0.1))
+      await poolController.updatePikaPerSecond(toGWei(0.1));
     });
-
+    it("should set verifier Address", async () => {
+      await staking.setVerifierAddress(verifierAddress.address);
+    });
+    it("should revert if non owner for verifier Address", async () => {
+      await expect(staking.connect(account1).setVerifierAddress(verifierAddress.address)).to.be.reverted;
+    });
   });
 });
