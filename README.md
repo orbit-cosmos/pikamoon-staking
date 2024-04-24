@@ -1,10 +1,29 @@
-# Pika Staking Smart contract
+# Pikamoon Staking Smart contract
 
-This project is about pikamoon token & staking smart contract.
+This project is about pikamoon staking smart contract. 
 
+# Scope:
 
-# deployed contracts
-- (sepolia) Pool controller = 0xB00af3788431B5351eE8753adCA8e543bb3Aa858 
-- (sepolia) Direct Staking = 0x10e49129dA0B5F4B145E32AA1ABb574b444f3A77 
-- (sepolia) LP Staking = 0x8A4A2a8577761fee7acd07A4e726134580Db913c 
-- (sepolia) Token =  0x13E467DAda37B741a47fB8c03157d4C133A79d75 
+- CorePool.sol
+- PikaStakingPool.sol
+- PoolController.sol
+- libraries/Errors.sol
+- libraries/Stake.sol
+- interfaces/ICorePool.sol
+- interfaces/IPikaMoon.sol
+- interfaces/IPoolController.sol
+
+# User Operations:
+
+- User can stake Pikamoon tokens and get Pikamoon tokens in rewards.
+- User can unstake or early unstake.
+- In case of early unstake, user will pay penalty.
+- User can claim rewards right after stake.
+- User can choose to claim partial reward and restake the remaining rewards.
+
+# Admin Operations:
+
+- Admin can Pause the Contract at any time.
+- Admin can create/register staking pool.
+- Admin can change Pool Weight.
+- Admin can change Pika Per Second.
