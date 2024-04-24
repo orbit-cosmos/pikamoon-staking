@@ -40,3 +40,9 @@ This project is about pikamoon staking smart contract.
 - Admin can change Pool Weight.
 - Admin can change Pika Per Second.
 - Admin can set verification address for ECDSA claim functionality.
+
+
+# Sepolia Address
+
+pool controller = 0xd622aAeCDC504B95041fE3556a4DB96f17D31919
+direct staking pool = 0x5c339eF0D009d20083b22953B379BDF8A4be5e9a
