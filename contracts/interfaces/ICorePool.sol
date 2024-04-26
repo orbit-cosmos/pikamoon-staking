@@ -76,6 +76,7 @@ interface ICorePool {
         address indexed to,
         uint256 stakeId,
         uint256 value,
+        uint256 earlyUnstakePercentage,
         bool isEarlyUnstake
     );
     /**

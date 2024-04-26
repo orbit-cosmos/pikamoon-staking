@@ -45,6 +45,8 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     address public rewardToken;
     /// @dev Link to the pool controller IPoolController instance.
     address public poolController;
+    /// @dev verifier Address for ECDSA claim verification.
+    address public verifierAddress;
 
     /**  @notice you can lock your tokens for a period between 1 and 12 months.
      * This changes your token weight. By increasing the duration of your lock,
@@ -89,6 +91,9 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         if (_poolController == address(0)) {
             revert CommonErrors.ZeroAddress();
         }
+
+        verifierAddress = owner();
+
         //PIKA or PIKA/USDT pair LP token address.
         poolToken = _poolToken;
         //PIKA token address.
@@ -97,7 +102,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         poolController = _poolController;
 
         // init the dependent state variables
-        lastRewardsDistribution = _now256();
+        lastRewardsDistribution = block.timestamp;
         // direct staking weight 200 and lp staking 800
         weight = _weight;
 
@@ -138,10 +143,10 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         _updateReward(_msgSender());
 
         // calculates until when a stake is going to be locked
-        uint256 lockUntil = _now256() + _lockDuration;
+        uint256 lockUntil = block.timestamp + _lockDuration;
 
         // calculate stake weight. same as weight function in stake.sol library
-        uint256 stakeWeight = (((lockUntil - _now256()) *
+        uint256 stakeWeight = (((lockUntil - block.timestamp) *
             Stake.WEIGHT_MULTIPLIER) /
             Stake.MAX_STAKE_PERIOD +
             Stake.BASE_WEIGHT) * _value;
@@ -151,7 +156,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         // create and save the stake (append it to stakes array)
         Stake.Data memory userStake = Stake.Data({
             value: _value,
-            lockedFrom: _now256(),
+            lockedFrom: block.timestamp,
             lockedUntil: lockUntil
         });
 
@@ -204,6 +209,11 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         Stake.Data storage userStake = user.stakes[_stakeId];
 
         uint256 stakeValue = userStake.value;
+
+        if(userStake.value == 0){
+            revert CommonErrors.ZeroAmount();
+        }
+
         // store stake weight
         uint256 previousWeight = userStake.weight();
 
@@ -217,10 +227,10 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         totalTokenStaked -= stakeValue;
 
         // checks if stake is unlocked already
-        if (_now256() < userStake.lockedUntil) {
+        if (block.timestamp < userStake.lockedUntil) {
             uint256 earlyUnstakePercentage = calculateEarlyUnstakePercentage(
                 userStake.lockedFrom,
-                _now256(),
+                block.timestamp,
                 userStake.lockedUntil
             );
 
@@ -234,13 +244,13 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
             // return user stake
             IPikaMoon(poolToken).safeTransfer(_msgSender(), unstakeValue);
             // emits an event
-            emit LogUnstake(_msgSender(), _stakeId, unstakeValue, true);
+            emit LogUnstake(_msgSender(), _stakeId, unstakeValue, earlyUnstakePercentage,true);
         } else {
             // return user stake
             IPikaMoon(poolToken).safeTransfer(_msgSender(), stakeValue);
 
             // emits an event
-            emit LogUnstake(_msgSender(), _stakeId, stakeValue, false);
+            emit LogUnstake(_msgSender(), _stakeId, stakeValue, 0,false);
         }
         // deletes stake struct
         delete user.stakes[_stakeId];
@@ -322,7 +332,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         require(!signatureUsed[message]);
         signatureUsed[message] = true;
 
-        if (ECDSA.recover(message, _signature) != owner()) {
+        if (ECDSA.recover(message, _signature) != verifierAddress) {
             revert CommonErrors.WrongHash();
         }
 
@@ -362,10 +372,10 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
             }
 
             // calculates until when a stake is going to be locked
-            uint256 lockUntil = _now256() + _lockDuration;
+            uint256 lockUntil = block.timestamp + _lockDuration;
 
             // calculate stake weight. same as weight function in stake.sol library
-            uint256 stakeWeight = (((lockUntil - _now256()) *
+            uint256 stakeWeight = (((lockUntil - block.timestamp) *
                 Stake.WEIGHT_MULTIPLIER) /
                 Stake.MAX_STAKE_PERIOD +
                 Stake.BASE_WEIGHT) * user.pendingRewards;
@@ -375,7 +385,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
             // create and save the stake (append it to stakes array)
             Stake.Data memory userStake = Stake.Data({
                 value: user.pendingRewards,
-                lockedFrom: _now256(),
+                lockedFrom: block.timestamp,
                 lockedUntil: lockUntil
             });
 
@@ -428,9 +438,9 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
 
         // if smart contract state was not updated recently, `rewardsPerWeight` value
         // is outdated and we need to recalculate it in order to calculate pending rewards correctly
-        if (_now256() > _lastRewardsDistribution && globalStakeWeight != 0) {
+        if (block.timestamp > _lastRewardsDistribution && globalStakeWeight != 0) {
             IPoolController _controller = IPoolController(poolController);
-            uint256 secondsPassed = _now256() - _lastRewardsDistribution;
+            uint256 secondsPassed = block.timestamp - _lastRewardsDistribution;
 
             uint256 pikaRewards = (secondsPassed *
                 _controller.pikaPerSecond() *
@@ -494,17 +504,17 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     function _sync() internal {
         IPoolController _poolController = IPoolController(poolController);
 
-        if (_now256() <= lastRewardsDistribution) {
+        if (block.timestamp <= lastRewardsDistribution) {
             return;
         }
         // if globalStakeWeight is zero - update only `lastRewardsDistribution` and exit
         if (globalStakeWeight == 0) {
-            lastRewardsDistribution = _now256();
+            lastRewardsDistribution = block.timestamp;
             return;
         }
 
         // to calculate the reward we need to know how many seconds passed, and reward per second
-        uint256 currentTimestamp = _now256();
+        uint256 currentTimestamp = block.timestamp;
         uint256 secondsPassed = currentTimestamp - lastRewardsDistribution;
 
         // calculate the reward
@@ -568,10 +578,15 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         }
     }
 
-    function _now256() internal view returns (uint256) {
-        // return current block timestamp
-        return block.timestamp;
+    /**
+     * @dev set verification address for ECDSA claim verification.
+     * @param _verifierAddress verifier Address 
+     */
+    function setVerifierAddress(address _verifierAddress) external onlyOwner {
+        verifierAddress = _verifierAddress;
     }
+
+
 
     /**
      * @notice Returns total staked token balance for the given address.
