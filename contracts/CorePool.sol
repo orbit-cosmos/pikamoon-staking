@@ -551,7 +551,31 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         return users[_user].stakes[_stakeId];
     }
 
+  function getPaginatedStake(address _user,uint startIndex, uint count) external view returns (Stake.Data[] memory result) {
+        Stake.Data[] memory data = users[_user].stakes;
+        uint len = data.length;
+        // Ensure that we are not starting the pagination out of the bounds of the array
+        if (startIndex >= len) return result;
 
+        // Calculate the actual number of items we can return
+        uint length = count;
+        if (startIndex + count > len) {
+            length = len - startIndex;
+        }
+
+        // Allocate memory for the result array
+        result = new Stake.Data[](length);
+
+        // Populate the result array with the relevant data
+        for (uint i = 0; i < length; ) {
+            result[i] = data[startIndex + i];
+            unchecked{
+                ++i;
+            }
+        }
+
+        return result;
+    }
      /**
      * @dev Empty reserved space in storage. The size of the __gap array is calculated so that
      *      the amount of storage used by a contract always adds up to the 50.
