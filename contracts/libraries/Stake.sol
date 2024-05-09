@@ -15,6 +15,10 @@ library Stake {
         uint256 lockedFrom;
         /// @dev locking period - until
         uint256 lockedUntil;
+        /// @dev whether the entry is unstaked 
+        bool isUnstaked;
+         /// @dev stakeId same as the array index 
+        uint256 stakeId;
     }
 
     /**

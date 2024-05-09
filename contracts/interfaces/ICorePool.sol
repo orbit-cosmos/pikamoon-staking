@@ -121,4 +121,12 @@ interface ICorePool {
      * @param endTime new endTime value
      */
     event LogSetEndTime(address indexed by, uint256 endTime);
+
+    /**
+     * @dev Fired in `setsetVerifierAddress()`.
+     *
+     * @param newVerificationAddress new Verification Address
+     * @param oldVerificationAddress old Verification Address
+     */
+    event LogVerificationAddress(address indexed newVerificationAddress,address indexed oldVerificationAddress);
 }

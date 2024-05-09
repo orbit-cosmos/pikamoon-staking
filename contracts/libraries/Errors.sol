@@ -14,4 +14,5 @@ library CommonErrors {
     error OnlyFactory();
     error AlreadyRegistered();
     error WrongHash();
+    error AlreadyUnstaked();
 }

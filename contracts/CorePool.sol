@@ -12,7 +12,6 @@ import {CommonErrors} from "./libraries/Errors.sol";
 import {ICorePool} from "./interfaces/ICorePool.sol";
 import {IPoolController} from "./interfaces/IPoolController.sol";
 
-// import "hardhat/console.sol";
 
 contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     using Stake for Stake.Data;
@@ -137,10 +136,10 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         }
 
         // get a link to user data struct, we will write to it later
-        User storage user = users[_msgSender()];
+        User storage user = users[msg.sender];
 
         // update user state
-        _updateReward(_msgSender());
+        _updateReward(msg.sender);
 
         // calculates until when a stake is going to be locked
         uint256 lockUntil = block.timestamp + _lockDuration;
@@ -155,9 +154,11 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
 
         // create and save the stake (append it to stakes array)
         Stake.Data memory userStake = Stake.Data({
+            stakeId:user.stakes.length,
             value: _value,
             lockedFrom: block.timestamp,
-            lockedUntil: lockUntil
+            lockedUntil: lockUntil,
+            isUnstaked: false
         });
 
         // pushes new stake to `stakes` array
@@ -174,14 +175,14 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
 
         // transfer `_value` to this contract
         IPikaMoon(poolToken).safeTransferFrom(
-            _msgSender(),
+            msg.sender,
             address(this),
             _value
         );
 
         // emits an event
         emit LogStake(
-            _msgSender(),
+            msg.sender,
             (user.stakes.length - 1),
             _value,
             lockUntil
@@ -200,16 +201,19 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         if (paused()) revert CommonErrors.ContractIsPaused();
 
         // get a link to user data struct, we will write to it later
-        User storage user = users[_msgSender()];
+        User storage user = users[msg.sender];
 
         // update user state
-        _updateReward(_msgSender());
+        _updateReward(msg.sender);
 
         // get a link to the corresponding stake, we may write to it later
         Stake.Data storage userStake = user.stakes[_stakeId];
 
         uint256 stakeValue = userStake.value;
 
+        if(user.stakes[_stakeId].isUnstaked){
+            revert CommonErrors.AlreadyUnstaked();
+        }
         if(userStake.value == 0){
             revert CommonErrors.ZeroAmount();
         }
@@ -242,18 +246,18 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
                 stakeValue - unstakeValue
             );
             // return user stake
-            IPikaMoon(poolToken).safeTransfer(_msgSender(), unstakeValue);
+            IPikaMoon(poolToken).safeTransfer(msg.sender, unstakeValue);
             // emits an event
-            emit LogUnstake(_msgSender(), _stakeId, unstakeValue, earlyUnstakePercentage,true);
+            emit LogUnstake(msg.sender, _stakeId, unstakeValue, earlyUnstakePercentage,true);
         } else {
             // return user stake
-            IPikaMoon(poolToken).safeTransfer(_msgSender(), stakeValue);
+            IPikaMoon(poolToken).safeTransfer(msg.sender, stakeValue);
 
             // emits an event
-            emit LogUnstake(_msgSender(), _stakeId, stakeValue, 0,false);
+            emit LogUnstake(msg.sender, _stakeId, stakeValue, 0,false);
         }
-        // deletes stake struct
-        delete user.stakes[_stakeId];
+        // mark stake struct as unstaked
+        user.stakes[_stakeId].isUnstaked = true;
     }
 
     /**
@@ -321,7 +325,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         bytes32 message = prefixed(
             keccak256(
                 abi.encodePacked(
-                    _msgSender(),
+                    msg.sender,
                     _claimPercentage,
                     _restakeLeftOver,
                     _lockDuration,
@@ -337,7 +341,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         }
 
         // save gas by caching msg.sender
-        address _staker = _msgSender();
+        address _staker = msg.sender;
 
         // update user state
         _updateReward(_staker);
@@ -384,9 +388,11 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
 
             // create and save the stake (append it to stakes array)
             Stake.Data memory userStake = Stake.Data({
+                stakeId:user.stakes.length,
                 value: user.pendingRewards,
                 lockedFrom: block.timestamp,
-                lockedUntil: lockUntil
+                lockedUntil: lockUntil,
+                isUnstaked: false
             });
 
             // pushes new stake to `stakes` array
@@ -409,7 +415,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
 
             // emits an event
             emit LogStake(
-                _msgSender(),
+                msg.sender,
                 (user.stakes.length - 1),
                 user.pendingRewards,
                 lockUntil
@@ -527,7 +533,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         lastRewardsDistribution = currentTimestamp;
 
         // emits an event
-        emit LogSync(_msgSender(), rewardsPerWeight, lastRewardsDistribution);
+        emit LogSync(msg.sender, rewardsPerWeight, lastRewardsDistribution);
     }
 
     /**
@@ -556,7 +562,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
      * @param _weight new weight to set for the pool
      */
     function setWeight(uint256 _weight) external {
-        if (_msgSender() != poolController) {
+        if (msg.sender != poolController) {
             revert CommonErrors.OnlyFactory();
         }
         // update pool state using current weight value
@@ -583,6 +589,8 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
      * @param _verifierAddress verifier Address 
      */
     function setVerifierAddress(address _verifierAddress) external onlyOwner {
+        if (_verifierAddress == address(0)) revert CommonErrors.ZeroAddress();
+        emit LogVerificationAddress(_verifierAddress,verifierAddress);
         verifierAddress = _verifierAddress;
     }
 
@@ -636,6 +644,49 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     ) external view returns (Stake.Data memory) {
         // read stake at specified index and return
         return users[_user].stakes[_stakeId];
+    }
+
+
+    /**
+     * @dev Get paginated stake information for a specific user
+     *
+     * This function allows querying stake information for a specific user in a paginated manner.
+     * Users can specify a start index and a count to retrieve a subset of the user's stakes.
+     *
+     * @param _user The address of the user to query stake information for
+     * @param startIndex The start index of the paginated results (zero-indexed)
+     * @param count The number of stake entries to retrieve
+     *
+     * @return result An array of Stake.Data structures containing paginated stake information
+     */
+    function getPaginatedStake(
+        address _user,
+        uint startIndex,
+        uint count
+    ) external view returns (Stake.Data[] memory result) {
+        Stake.Data[] memory data = users[_user].stakes;
+        uint len = data.length;
+        // Ensure that we are not starting the pagination out of the bounds of the array
+        if (startIndex >= len) return result;
+
+        // Calculate the actual number of items we can return
+        uint length = count;
+        if (startIndex + count > len) {
+            length = len - startIndex;
+        }
+
+        // Allocate memory for the result array
+        result = new Stake.Data[](length);
+
+        // Populate the result array with the relevant data
+        for (uint i = 0; i < length; ) {
+            result[i] = data[startIndex + i];
+            unchecked {
+                ++i;
+            }
+        }
+
+        return result;
     }
 
     /**
