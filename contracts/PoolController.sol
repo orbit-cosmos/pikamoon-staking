@@ -55,7 +55,7 @@ contract PoolController is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     function initialize() external initializer {
-        __Ownable_init(_msgSender());
+        __Ownable_init(msg.sender);
         __UUPSUpgradeable_init();
         pikaPerSecond = 25.3678335870 gwei; // pika has 9 decimals, so gwei = 10**9
 
@@ -90,7 +90,7 @@ contract PoolController is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         address _to,
         uint256 _value
     ) public {
-        if (!poolExists[_msgSender()]) {
+        if (!poolExists[msg.sender]) {
             revert CommonErrors.AlreadyRegistered();
         }
         IPikaMoon(_token).safeTransfer(_to, _value);
@@ -111,7 +111,7 @@ contract PoolController is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         ICorePool(pool).setWeight(weight);
 
         // emit an event
-        emit LogChangePoolWeight(_msgSender(), address(pool), weight);
+        emit LogChangePoolWeight(msg.sender, address(pool), weight);
     }
 
     /**

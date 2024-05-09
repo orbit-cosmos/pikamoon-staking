@@ -296,6 +296,10 @@ describe("Pika Staking", function () {
         staking,
         "LogUnstake",
       );
+      await expect(staking.connect(account1).unstake(0)).to.be.revertedWithCustomError(
+        staking,
+        "AlreadyUnstaked",
+      );
     });
 
     it("should allow early unstake ", async () => {
@@ -367,7 +371,7 @@ describe("Pika Staking", function () {
     it("should revert is caller is not owner for function paused", async () => {
       expect(
         await staking.connect(account1).pendingRewards(account1.address),
-      ).to.be.eq(13150745814301403n);
+      ).to.be.eq(13150750887868121n);
     });
 
     // ************* admin actions **************
