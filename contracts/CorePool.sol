@@ -438,7 +438,8 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         uint256 _lastRewardsDistribution = lastRewardsDistribution;
 
         // based on the rewards per weight value, calculate pending rewards;
-        User memory user = users[_staker];
+        // storage takes less gas
+        User storage user = users[_staker];
         // initializes both variables from one storage slot
         uint256 userWeight = user.userTotalWeight;
 
@@ -605,14 +606,17 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
      * @param _user an address to query balance for
      * @return balance total staked token balance
      */
-    function balanceOf(address _user) external view returns (uint256 balance) {
+     function balanceOf(address _user) external view returns (uint256 balance) {
         // gets storage pointer to _user
-        User memory user = users[_user];
+        // storage takes less gas
+        User storage user = users[_user];
         // calculate length
-        uint256 len = user.stakes.length;
+         uint256 len = user.stakes.length;
         // loops over each user stake and adds to the total balance.
         for (uint256 i; i < len; i++) {
+            if(!user.stakes[i].isUnstaked){
             balance += user.stakes[i].value;
+            }
         }
     }
 
@@ -664,7 +668,8 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         uint startIndex,
         uint count
     ) external view returns (Stake.Data[] memory result) {
-        Stake.Data[] memory data = users[_user].stakes;
+        // storage takes less gas
+        Stake.Data[] storage data = users[_user].stakes;
         uint len = data.length;
         // Ensure that we are not starting the pagination out of the bounds of the array
         if (startIndex >= len) return result;

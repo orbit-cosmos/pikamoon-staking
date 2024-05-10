@@ -292,10 +292,12 @@ describe("Pika Staking", function () {
     });
     it("should allow unstake ", async () => {
       await time.increase(30 * 24 * 60 * 60);
+      let stakeBal = await staking.balanceOf(account1.address); 
       await expect(staking.connect(account1).unstake(0)).to.emit(
         staking,
         "LogUnstake",
       );
+      expect(await staking.balanceOf(account1.address)).to.be.equal(stakeBal - toGWei(50));
       await expect(staking.connect(account1).unstake(0)).to.be.revertedWithCustomError(
         staking,
         "AlreadyUnstaked",
@@ -368,10 +370,15 @@ describe("Pika Staking", function () {
     });
 
     // ************* pendingRewards **************
-    it("should revert is caller is not owner for function paused", async () => {
+    it("should test pendingRewards ", async () => {
       expect(
         await staking.connect(account1).pendingRewards(account1.address),
       ).to.be.eq(13150750887868121n);
+
+      await expect(
+         staking.connect(account1).pendingRewards(ZeroAddress),
+      ).to.be.revertedWithCustomError(staking,"ZeroAddress")
+      
     });
 
     // ************* admin actions **************
@@ -398,10 +405,30 @@ describe("Pika Staking", function () {
       await poolController.updatePikaPerSecond(toGWei(0.1));
     });
     it("should set verifier Address", async () => {
-      await staking.setVerifierAddress(verifierAddress.address);
+      await expect(staking.setVerifierAddress(verifierAddress.address)).to.emit(staking,"LogVerificationAddress");;
+
+    });
+    it("should revert if try to set zero address", async () => {
+      await expect(staking.setVerifierAddress(ZeroAddress)).to.be.reverted;
+      
     });
     it("should revert if non owner for verifier Address", async () => {
       await expect(staking.connect(account1).setVerifierAddress(verifierAddress.address)).to.be.reverted;
     });
+    it("should test getPaginatedStake", async () => {
+      staking.connect(account1).getPaginatedStake(
+        account1.address,
+         0,
+         10
+      );
+      staking.connect(account1).getPaginatedStake(
+        account1.address,
+         6,
+         10
+      );
+    });
+
+
+  
   });
 });
