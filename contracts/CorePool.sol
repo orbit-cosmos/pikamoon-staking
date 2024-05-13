@@ -101,7 +101,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         poolController = _poolController;
 
         // init the dependent state variables
-        lastRewardsDistribution = block.timestamp;
+        lastRewardsDistribution = _now256();
         // direct staking weight 200 and lp staking 800
         weight = _weight;
 
@@ -142,10 +142,10 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         _updateReward(msg.sender);
 
         // calculates until when a stake is going to be locked
-        uint256 lockUntil = block.timestamp + _lockDuration;
+        uint256 lockUntil = _now256() + _lockDuration;
 
         // calculate stake weight. same as weight function in stake.sol library
-        uint256 stakeWeight = (((lockUntil - block.timestamp) *
+        uint256 stakeWeight = (((lockUntil - _now256()) *
             Stake.WEIGHT_MULTIPLIER) /
             Stake.MAX_STAKE_PERIOD +
             Stake.BASE_WEIGHT) * _value;
@@ -156,7 +156,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         Stake.Data memory userStake = Stake.Data({
             stakeId:user.stakes.length,
             value: _value,
-            lockedFrom: block.timestamp,
+            lockedFrom: _now256(),
             lockedUntil: lockUntil,
             isUnstaked: false
         });
@@ -231,10 +231,10 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         totalTokenStaked -= stakeValue;
 
         // checks if stake is unlocked already
-        if (block.timestamp < userStake.lockedUntil) {
+        if (_now256() < userStake.lockedUntil) {
             uint256 earlyUnstakePercentage = calculateEarlyUnstakePercentage(
                 userStake.lockedFrom,
-                block.timestamp,
+                _now256(),
                 userStake.lockedUntil
             );
 
@@ -376,10 +376,10 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
             }
 
             // calculates until when a stake is going to be locked
-            uint256 lockUntil = block.timestamp + _lockDuration;
+            uint256 lockUntil = _now256() + _lockDuration;
 
             // calculate stake weight. same as weight function in stake.sol library
-            uint256 stakeWeight = (((lockUntil - block.timestamp) *
+            uint256 stakeWeight = (((lockUntil - _now256()) *
                 Stake.WEIGHT_MULTIPLIER) /
                 Stake.MAX_STAKE_PERIOD +
                 Stake.BASE_WEIGHT) * user.pendingRewards;
@@ -390,7 +390,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
             Stake.Data memory userStake = Stake.Data({
                 stakeId:user.stakes.length,
                 value: user.pendingRewards,
-                lockedFrom: block.timestamp,
+                lockedFrom: _now256(),
                 lockedUntil: lockUntil,
                 isUnstaked: false
             });
@@ -445,9 +445,9 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
 
         // if smart contract state was not updated recently, `rewardsPerWeight` value
         // is outdated and we need to recalculate it in order to calculate pending rewards correctly
-        if (block.timestamp > _lastRewardsDistribution && globalStakeWeight != 0) {
+        if (_now256() > _lastRewardsDistribution && globalStakeWeight != 0) {
             IPoolController _controller = IPoolController(poolController);
-            uint256 secondsPassed = block.timestamp - _lastRewardsDistribution;
+            uint256 secondsPassed = _now256() - _lastRewardsDistribution;
 
             uint256 pikaRewards = (secondsPassed *
                 _controller.pikaPerSecond() *
@@ -511,17 +511,17 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     function _sync() internal {
         IPoolController _poolController = IPoolController(poolController);
 
-        if (block.timestamp <= lastRewardsDistribution) {
+        if (_now256() <= lastRewardsDistribution) {
             return;
         }
         // if globalStakeWeight is zero - update only `lastRewardsDistribution` and exit
         if (globalStakeWeight == 0) {
-            lastRewardsDistribution = block.timestamp;
+            lastRewardsDistribution = _now256();
             return;
         }
 
         // to calculate the reward we need to know how many seconds passed, and reward per second
-        uint256 currentTimestamp = block.timestamp;
+        uint256 currentTimestamp = _now256();
         uint256 secondsPassed = currentTimestamp - lastRewardsDistribution;
 
         // calculate the reward
@@ -692,6 +692,17 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         }
 
         return result;
+    }
+
+     /**
+     * @dev Testing time-dependent functionality is difficult and the best way of
+     *      doing it is to override time in helper test smart contracts.
+     *
+     * @return `block.timestamp` in mainnet, custom values in testnets (if overridden).
+     */
+    function _now256() internal view virtual returns (uint256) {
+        // return current block timestamp
+        return block.timestamp;
     }
 
     /**

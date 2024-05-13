@@ -91,7 +91,7 @@ contract PoolController is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         uint256 _value
     ) public {
         if (!poolExists[msg.sender]) {
-            revert CommonErrors.AlreadyRegistered();
+            revert CommonErrors.UnAuthorized();
         }
         IPikaMoon(_token).safeTransfer(_to, _value);
     }
