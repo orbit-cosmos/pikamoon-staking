@@ -15,4 +15,5 @@ library CommonErrors {
     error AlreadyRegistered();
     error WrongHash();
     error AlreadyUnstaked();
+    error UnAuthorized();
 }
