@@ -150,7 +150,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
             Stake.MAX_STAKE_PERIOD +
             Stake.BASE_WEIGHT) * _value;
         // makes sure stakeWeight is valid
-        assert(stakeWeight > 0);
+        require(stakeWeight > 0);
 
         // create and save the stake (append it to stakes array)
         Stake.Data memory userStake = Stake.Data({
@@ -320,7 +320,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         // checks if the contract is in a paused state
         if (paused()) revert CommonErrors.ContractIsPaused();
 
-        assert(_claimPercentage <= multiplier);
+        require(_claimPercentage <= multiplier);
 
         bytes32 message = prefixed(
             keccak256(
@@ -384,7 +384,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
                 Stake.MAX_STAKE_PERIOD +
                 Stake.BASE_WEIGHT) * user.pendingRewards;
             // makes sure stakeWeight is valid
-            assert(stakeWeight > 0);
+            require(stakeWeight > 0);
 
             // create and save the stake (append it to stakes array)
             Stake.Data memory userStake = Stake.Data({

@@ -45,4 +45,7 @@ This project is about pikamoon staking smart contract.
 # Sepolia Address
 
 pool controller = 0xd622aAeCDC504B95041fE3556a4DB96f17D31919
-direct staking pool = 0x536A6eb2cc011b1cB7dF04dd8d444100e6AbBc2e
+direct staking pool = 0x42441756E08af5652727C7a7d0a9cBC989eeeA8d
+lp staking pool = 0x04810828935c2415c472C5adb3BA3BE9d8b2fE5C
+LP TOKEN = 0x1b10cA433611878595250e8Fd340e5DEE8f8ccF0
+PIKA TOKEN = 0x13E467DAda37B741a47fB8c03157d4C133A79d75 
