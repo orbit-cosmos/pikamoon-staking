@@ -76,6 +76,7 @@ describe("Pika Staking", function () {
     await token.mint(account2.address, toGWei(500));
     await token.mint(account1.address, toGWei(500));
     await token.excludeFromTax(staking.target, true);
+    await token.excludeFromTax(poolController.target, true);
 
     return { token, staking, owner, account1, account2, poolController, verifierAddress };
   }

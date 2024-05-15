@@ -209,7 +209,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         // get a link to the corresponding stake, we may write to it later
         Stake.Data storage userStake = user.stakes[_stakeId];
 
-        uint256 stakeValue = userStake.value;
+        uint256 stakeValue = userStake.value; 
 
         if(user.stakes[_stakeId].isUnstaked){
             revert CommonErrors.AlreadyUnstaked();
@@ -229,6 +229,10 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
 
         // update global pool token count
         totalTokenStaked -= stakeValue;
+
+
+        // mark stake struct as unstaked
+        user.stakes[_stakeId].isUnstaked = true;
 
         // checks if stake is unlocked already
         if (_now256() < userStake.lockedUntil) {
@@ -256,8 +260,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
             // emits an event
             emit LogUnstake(msg.sender, _stakeId, stakeValue, 0,false);
         }
-        // mark stake struct as unstaked
-        user.stakes[_stakeId].isUnstaked = true;
+     
     }
 
     /**
@@ -313,7 +316,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
         uint256 _claimPercentage,
         bool _restakeLeftOver,
         uint256 _lockDuration,
-        bytes memory _signature,
+        bytes calldata _signature,
         uint256 nonce
     ) external {
         // lock duration recommended to be of 1 year to mitigate protocol abuse
@@ -340,17 +343,19 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
             revert CommonErrors.WrongHash();
         }
 
-        // save gas by caching msg.sender
-        address _staker = msg.sender;
 
         // update user state
-        _updateReward(_staker);
+        _updateReward(msg.sender);
 
         // get link to a user data structure, we will write into it later
-        User storage user = users[_staker];
+        User storage user = users[msg.sender];
 
         // if pending rewards is zero revert
         if (user.pendingRewards == 0) return;
+
+        if(_claimPercentage == 0 && !_restakeLeftOver){
+            revert();
+        }
 
         if (_claimPercentage != 0) {
             uint256 toClaim = (user.pendingRewards * _claimPercentage) /
@@ -361,19 +366,22 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
 
             IPoolController(poolController).transferRewardTokens(
                 rewardToken,
-                _staker,
+                msg.sender,
                 toClaim
             );
             // emits an event
-            emit LogClaimRewards(_staker, toClaim);
+            emit LogClaimRewards(msg.sender, toClaim);
         }
-        if (_restakeLeftOver) {
+        if (_restakeLeftOver && _claimPercentage < multiplier) {
             if (
                 !(_lockDuration >= Stake.MIN_STAKE_PERIOD &&
                     _lockDuration <= Stake.MAX_STAKE_PERIOD)
             ) {
                 revert CommonErrors.InvalidLockDuration();
             }
+
+            uint256 pendingRewardsToClaim = user.pendingRewards;
+            user.pendingRewards = 0;
 
             // calculates until when a stake is going to be locked
             uint256 lockUntil = _now256() + _lockDuration;
@@ -382,14 +390,14 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
             uint256 stakeWeight = (((lockUntil - _now256()) *
                 Stake.WEIGHT_MULTIPLIER) /
                 Stake.MAX_STAKE_PERIOD +
-                Stake.BASE_WEIGHT) * user.pendingRewards;
+                Stake.BASE_WEIGHT) * pendingRewardsToClaim;
             // makes sure stakeWeight is valid
             require(stakeWeight > 0);
 
             // create and save the stake (append it to stakes array)
             Stake.Data memory userStake = Stake.Data({
                 stakeId:user.stakes.length,
-                value: user.pendingRewards,
+                value: pendingRewardsToClaim,
                 lockedFrom: _now256(),
                 lockedUntil: lockUntil,
                 isUnstaked: false
@@ -405,22 +413,22 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
             globalStakeWeight += stakeWeight;
 
             // update pool reserve
-            totalTokenStaked += user.pendingRewards;
+            totalTokenStaked += pendingRewardsToClaim;
 
             IPoolController(poolController).transferRewardTokens(
                 rewardToken,
                 address(this),
-                user.pendingRewards
+                pendingRewardsToClaim
             );
 
             // emits an event
             emit LogStake(
                 msg.sender,
                 (user.stakes.length - 1),
-                user.pendingRewards,
+                pendingRewardsToClaim,
                 lockUntil
             );
-            user.pendingRewards = 0;
+            
         }
     }
 

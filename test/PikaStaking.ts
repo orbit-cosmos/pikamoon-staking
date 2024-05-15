@@ -75,6 +75,7 @@ describe("Pika Staking", function () {
     await token.mint(account2.address, toGWei(50));
     await token.mint(account1.address, toGWei(50));
     await token.excludeFromTax(staking.target, true);
+    await token.excludeFromTax(poolController.target, true);
 
     return { token, staking, owner, account1, account2, poolController,verifierAddress };
   }
@@ -173,7 +174,7 @@ describe("Pika Staking", function () {
 
     // ************* claim **************
 
-    it("should allow claim if contract is paused", async () => {
+    it("should not allow claim if contract is paused", async () => {
       await staking.pause(true);
       let time = new Date().getTime();
       const ONE_MONTH_IN_SECS = 30 * 24 * 60 * 60;
