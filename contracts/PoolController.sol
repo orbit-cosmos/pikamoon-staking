@@ -114,6 +114,14 @@ contract PoolController is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         emit LogChangePoolWeight(msg.sender, address(pool), weight);
     }
 
+
+    /**
+     * @dev Overrides `Ownable.renounceOwnership()`, to avoid accidentally
+     *      renouncing ownership of the PoolControllers contract.
+     */
+    function renounceOwnership() public virtual override {}
+
+
     /**
      * @dev Function that should revert when `msg.sender` is not authorized to upgrade the contract. Called by
      * {upgradeToAndCall}.
@@ -121,4 +129,12 @@ contract PoolController is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     function _authorizeUpgrade(
         address newImplementation
     ) internal override onlyOwner {}
+
+
+     /**
+     * @dev Empty reserved space in storage. The size of the __gap array is calculated so that
+     *      the amount of storage used by a contract always adds up to the 50.
+     *      See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
+     */
+    uint256[48] private __gap;
 }

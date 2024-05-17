@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-
+import  "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {IPikaMoon} from "./interfaces/IPikaMoon.sol";
 import {Stake} from "./libraries/Stake.sol";
 import {CommonErrors} from "./libraries/Errors.sol";
@@ -13,7 +13,7 @@ import {ICorePool} from "./interfaces/ICorePool.sol";
 import {IPoolController} from "./interfaces/IPoolController.sol";
 
 
-contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
+contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,ReentrancyGuardUpgradeable {
     using Stake for Stake.Data;
     using Stake for uint256;
     using SafeERC20 for IPikaMoon;
@@ -68,11 +68,16 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
 
     uint256 private multiplier; // 1000 = 100%
 
+
+    uint32 private constant COOLDOWN_PERIOD = 30 days;
+
     /// @dev Token holder storage, maps token holder address to their data record.
     mapping(address => User) public users;
 
     /// @dev mapping to prevent signature replay
     mapping(bytes32 => bool) public signatureUsed;
+
+    mapping(address=>uint256) public coolOffPeriod;
 
     function __CorePool_init(
         address _poolToken,
@@ -120,7 +125,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
      * @param _lockDuration stake duration as unix timestamp
      */
 
-    function stake(uint256 _value, uint256 _lockDuration) external {
+    function stake(uint256 _value, uint256 _lockDuration) external nonReentrant{
         // checks if the contract is in a paused state
         if (paused()) revert CommonErrors.ContractIsPaused();
 
@@ -315,7 +320,6 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
     function claimRewards(
         uint256 _claimPercentage,
         bool _restakeLeftOver,
-        uint256 _lockDuration,
         bytes calldata _signature,
         uint256 nonce
     ) external {
@@ -325,13 +329,17 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
 
         require(_claimPercentage <= multiplier);
 
+        if(block.timestamp < coolOffPeriod[msg.sender] + COOLDOWN_PERIOD){
+            revert();
+        }
+        coolOffPeriod[msg.sender] = block.timestamp; // Update the last claim time
+
         bytes32 message = prefixed(
             keccak256(
                 abi.encodePacked(
                     msg.sender,
                     _claimPercentage,
                     _restakeLeftOver,
-                    _lockDuration,
                     nonce
                 )
             )
@@ -373,18 +381,13 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool {
             emit LogClaimRewards(msg.sender, toClaim);
         }
         if (_restakeLeftOver && _claimPercentage < multiplier) {
-            if (
-                !(_lockDuration >= Stake.MIN_STAKE_PERIOD &&
-                    _lockDuration <= Stake.MAX_STAKE_PERIOD)
-            ) {
-                revert CommonErrors.InvalidLockDuration();
-            }
+          
 
             uint256 pendingRewardsToClaim = user.pendingRewards;
             user.pendingRewards = 0;
 
             // calculates until when a stake is going to be locked
-            uint256 lockUntil = _now256() + _lockDuration;
+            uint256 lockUntil = _now256() + Stake.MAX_STAKE_PERIOD;
 
             // calculate stake weight. same as weight function in stake.sol library
             uint256 stakeWeight = (((lockUntil - _now256()) *
