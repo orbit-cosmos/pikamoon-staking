@@ -17,4 +17,5 @@ library CommonErrors {
     error AlreadyUnstaked();
     error UnAuthorized();
     error CoolOffPeriodIsNotOver();
+    error InvalidOperation();
 }

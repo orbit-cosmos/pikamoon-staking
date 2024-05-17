@@ -219,9 +219,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
         if(user.stakes[_stakeId].isUnstaked){
             revert CommonErrors.AlreadyUnstaked();
         }
-        if(userStake.value == 0){
-            revert CommonErrors.ZeroAmount();
-        }
+    
 
         // store stake weight
         uint256 previousWeight = userStake.weight();
@@ -329,10 +327,10 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
 
         require(_claimPercentage <= multiplier);
 
-        if(block.timestamp < coolOffPeriod[msg.sender] + COOLDOWN_PERIOD){
+        if(_now256() < coolOffPeriod[msg.sender] + COOLDOWN_PERIOD){
             revert CommonErrors.CoolOffPeriodIsNotOver();
         }
-        coolOffPeriod[msg.sender] = block.timestamp; // Update the last claim time
+        coolOffPeriod[msg.sender] = _now256(); // Update the last claim time
 
         bytes32 message = prefixed(
             keccak256(
@@ -362,7 +360,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
         if (user.pendingRewards == 0) return;
 
         if(_claimPercentage == 0 && !_restakeLeftOver){
-            revert();
+            revert CommonErrors.InvalidOperation();
         }
 
         if (_claimPercentage != 0) {

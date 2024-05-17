@@ -423,8 +423,23 @@ describe("Pika Staking", function () {
     it("should set verifier Address", async () => {
       await staking.setVerifierAddress(verifierAddress.address);
     });
+    it("should revert if try to set zero address", async () => {
+      await expect(staking.setVerifierAddress(ZeroAddress)).to.be.revertedWithCustomError(staking,"ZeroAddress");
+    })
     it("should revert if non owner for verifier Address", async () => {
       await expect(staking.connect(account1).setVerifierAddress(verifierAddress.address)).to.be.reverted;
+    });
+    it("should test getPaginatedStake", async () => {
+      staking.connect(account1).getPaginatedStake(
+        account1.address,
+         0,
+         10
+      );
+      staking.connect(account1).getPaginatedStake(
+        account1.address,
+         6,
+         16
+      );
     });
   });
 });
