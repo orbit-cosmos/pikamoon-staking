@@ -14,12 +14,11 @@ function encodeAndHash(
     address: Address | string,
     amount: bigint | number,
     restake: boolean,
-    duration: bigint | number,
     nonce: bigint | number,
 ) {
     return ethers.solidityPackedKeccak256(
-        ["address", "uint256", "bool", "uint256", "uint256"],
-        [address, amount, restake, duration, nonce],
+        ["address", "uint256", "bool", "uint256"],
+        [address, amount, restake, nonce],
     );
 }
 describe("Pika Staking", function () {
@@ -172,14 +171,14 @@ const message = encodeAndHash(
     account1.address,
     1000,
     false,
-    ONE_MONTH_IN_SECS,
     time_nonce,
 );
             const signature = await owner.signMessage(ethers.toBeArray(message));
+            await time.increase(30 * 24 * 60 * 60);
             await expect(
                 staking
                 .connect(account1)
-                .claimRewards(1000, false, ONE_MONTH_IN_SECS, signature, time_nonce),
+                .claimRewards(1000, false, signature, time_nonce),
             ).to.emit(staking, "LogClaimRewards");
             
             console.log("balance account1",await token.balanceOf(account1.address))

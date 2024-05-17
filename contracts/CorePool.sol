@@ -330,7 +330,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
         require(_claimPercentage <= multiplier);
 
         if(block.timestamp < coolOffPeriod[msg.sender] + COOLDOWN_PERIOD){
-            revert();
+            revert CommonErrors.CoolOffPeriodIsNotOver();
         }
         coolOffPeriod[msg.sender] = block.timestamp; // Update the last claim time
 
