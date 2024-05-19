@@ -719,5 +719,5 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
      *      the amount of storage used by a contract always adds up to the 50.
      *      See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
-    uint256[40] private __gap;
+    uint256[37] private __gap;
 }
