@@ -22,6 +22,7 @@ contract PoolController is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     /// @dev Keeps track of registered pool addresses, maps pool address -> exists flag.
     mapping(address => bool) public poolExists;
+    // @dev pool token to pool address
     mapping(address => address) public pools;
 
     /**
@@ -78,7 +79,7 @@ contract PoolController is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         emit LogRegisterPool(_poolAddress);
     }
 
-
+    // @dev add pool token to pool address
      function addPool(address _poolAddress,address _poolToken) external onlyOwner {
         pools[_poolToken] = _poolAddress;
     }

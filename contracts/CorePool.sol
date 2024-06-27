@@ -484,7 +484,8 @@ contract CorePool is
             } else {
                 uint256 pendingRewardsToClaim = user.pendingRewards;
                 user.pendingRewards = 0;
-                ICorePool(IPoolController(poolController).pools(rewardToken))
+                address poolAddress = IPoolController(poolController).pools(rewardToken);
+                ICorePool(poolAddress)
                     .stakeAsPool(msg.sender, pendingRewardsToClaim);
             }
         }
