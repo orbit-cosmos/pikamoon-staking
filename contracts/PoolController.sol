@@ -22,6 +22,7 @@ contract PoolController is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     /// @dev Keeps track of registered pool addresses, maps pool address -> exists flag.
     mapping(address => bool) public poolExists;
+    mapping(address => address) public pools;
 
     /**
      * @dev Fired in `changePoolWeight()`.
@@ -68,7 +69,14 @@ contract PoolController is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         if (poolExists[_poolAddress]) {
             revert CommonErrors.AlreadyRegistered();
         }
+
+        (bool ok, bytes memory result) = _poolAddress.staticcall(abi.encodeWithSignature("poolToken()"));
+        require(ok);
+        
+        address poolToken = abi.decode(result, (address));
+        pools[poolToken] = _poolAddress;
         poolExists[_poolAddress] = true;
+
         emit LogRegisterPool(_poolAddress);
     }
     /// @notice Updates the rate of PIKA distribution per second

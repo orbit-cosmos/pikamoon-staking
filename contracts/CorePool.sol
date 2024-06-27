@@ -194,6 +194,61 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
         );
     }
 
+
+
+    function stakeAsPool(address _staker, uint256 _value) external nonReentrant {
+         // checks if the contract is in a paused state
+        if (paused()) revert CommonErrors.ContractIsPaused();
+
+        IPoolController _controller = IPoolController(poolController);
+        if (!_controller.poolExists(msg.sender)) {
+            revert CommonErrors.UnAuthorized();
+        }
+        // gets storage pointer to user
+        User storage user = users[_staker];
+        // update user state
+        _updateReward(_staker);
+                   uint256 lockUntil = _now256() + Stake.MAX_STAKE_PERIOD;
+
+  uint256 stakeWeight = (((lockUntil - _now256()) *
+                Stake.WEIGHT_MULTIPLIER) /
+                Stake.MAX_STAKE_PERIOD +
+                Stake.BASE_WEIGHT) * _value;
+
+
+        // initialize new yield stake being created in memory
+        Stake.Data memory newStake = Stake.Data({
+             stakeId:user.stakes.length,
+            value: _value,
+            lockedFrom: _now256(),
+            lockedUntil: _now256() + Stake.MAX_STAKE_PERIOD,
+                isUnstaked: false
+        });
+        // sum new yield stake weight to user's total weight
+        user.userTotalWeight += stakeWeight;
+        // add the new yield stake to storage
+        user.stakes.push(newStake);
+        // update global weight and global pool token count
+        globalStakeWeight += stakeWeight;
+        totalTokenStaked += _value;
+
+
+         IPoolController(poolController).transferRewardTokens(
+                rewardToken,
+                address(this),
+                _value
+            );
+
+        // emits an event
+        emit LogStake(
+            _staker,
+            (user.stakes.length - 1),
+            _value,
+            lockUntil
+        );
+    }
+
+
     /**
      * @dev Unstakes a stake that has been previously locked, and is now in an unlocked
      *      state if user tries to early unstake he is slashed according to percentage of time calculations
@@ -326,10 +381,12 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
         if (paused()) revert CommonErrors.ContractIsPaused();
 
         require(_claimPercentage <= multiplier);
-
-        if(_now256() < coolOffPeriod[msg.sender] + COOLDOWN_PERIOD){
-            revert CommonErrors.CoolOffPeriodIsNotOver();
+        if(!_restakeLeftOver && _claimPercentage != 0){
+            if(_now256() < coolOffPeriod[msg.sender] + COOLDOWN_PERIOD){
+                revert CommonErrors.CoolOffPeriodIsNotOver();
+            }
         }
+      
         coolOffPeriod[msg.sender] = _now256(); // Update the last claim time
 
         bytes32 message = prefixed(
@@ -379,7 +436,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
             emit LogClaimRewards(msg.sender, toClaim);
         }
         if (_restakeLeftOver && _claimPercentage < multiplier) {
-          
+          if(poolToken == rewardToken){
 
             uint256 pendingRewardsToClaim = user.pendingRewards;
             user.pendingRewards = 0;
@@ -429,7 +486,11 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
                 pendingRewardsToClaim,
                 lockUntil
             );
-            
+          }else{
+            uint256 pendingRewardsToClaim = user.pendingRewards;
+            user.pendingRewards = 0;
+            ICorePool(IPoolController(poolController).pools(rewardToken)).stakeAsPool(msg.sender,pendingRewardsToClaim);
+          }
         }
     }
 
@@ -713,6 +774,10 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
         // return current block timestamp
         return block.timestamp;
     }
+
+
+
+
 
     /**
      * @dev Empty reserved space in storage. The size of the __gap array is calculated so that
