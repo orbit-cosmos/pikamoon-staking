@@ -70,15 +70,20 @@ contract PoolController is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             revert CommonErrors.AlreadyRegistered();
         }
 
-        (bool ok, bytes memory result) = _poolAddress.staticcall(abi.encodeWithSignature("poolToken()"));
-        require(ok);
+        address poolToken= ICorePool(_poolAddress).poolToken();
         
-        address poolToken = abi.decode(result, (address));
         pools[poolToken] = _poolAddress;
         poolExists[_poolAddress] = true;
 
         emit LogRegisterPool(_poolAddress);
     }
+
+
+     function addPool(address _poolAddress,address _poolToken) external onlyOwner {
+        pools[_poolToken] = _poolAddress;
+    }
+
+   
     /// @notice Updates the rate of PIKA distribution per second
     /// @dev Only callable by the owner; emits LogUpdatePikaPerSecond on success
     /// @param _pikaPerSecond The new rate of PIKA distribution per second
