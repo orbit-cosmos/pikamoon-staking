@@ -41,7 +41,8 @@ users can choose the parameters of their liking and enjoy amazing yields.
 
 - User can Re-stake rewards in $Pika tokens.
     * user can decide weather to re-stake all rewards or a portion. for direct staking the rewards are re-staked in pool itself however in the case of Lp staking pool, the rewards are re-staked in direct staking pool. 
-    * user story where a user is eligible to claim 60% of the rewards the remaining 40% of the rewards can be either kept in the pool for further accumulation or re staked for a set period of time or re stake the whole rewards altogether.
+    * user story where a user is eligible to claim 60% of the rewards the remaining 40% of the rewards can be either kept in the pool for further accumulation or re staked for a set period of time or re stake the whole 100% rewards altogether in the direct staking pool.
+    * re-staking tokens will be staked for 1 year in direct staking pool..
   
 # Admin Operations:
 
