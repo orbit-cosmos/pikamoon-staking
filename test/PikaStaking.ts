@@ -14,12 +14,11 @@ function encodeAndHash(
   address: Address | string,
   amount: bigint | number,
   restake: boolean,
-  duration: bigint | number,
   nonce: bigint | number,
 ) {
   return ethers.solidityPackedKeccak256(
-    ["address", "uint256", "bool", "uint256", "uint256"],
-    [address, amount, restake, duration, nonce],
+    ["address", "uint256", "bool", "uint256"],
+    [address, amount, restake, nonce],
   );
 }
 describe("Pika Staking", function () {
@@ -75,6 +74,7 @@ describe("Pika Staking", function () {
     await token.mint(account2.address, toGWei(50));
     await token.mint(account1.address, toGWei(50));
     await token.excludeFromTax(staking.target, true);
+    await token.excludeFromTax(poolController.target, true);
 
     return { token, staking, owner, account1, account2, poolController,verifierAddress };
   }
@@ -173,120 +173,122 @@ describe("Pika Staking", function () {
 
     // ************* claim **************
 
-    it("should allow claim if contract is paused", async () => {
+    it("should not allow claim if contract is paused", async () => {
       await staking.pause(true);
-      let time = new Date().getTime();
+      let _time = new Date().getTime();
       const ONE_MONTH_IN_SECS = 30 * 24 * 60 * 60;
       const message = encodeAndHash(
         account1.address,
         500,
         true,
-        ONE_MONTH_IN_SECS,
-        time,
+        _time,
       );
       const signature = await owner.signMessage(ethers.toBeArray(message));
+      await time.increase(30 * 24 * 60 * 60);
       await expect(
         staking
           .connect(account1)
-          .claimRewards(500, true, ONE_MONTH_IN_SECS, signature, time),
+          .claimRewards(500, true, signature, _time),
       ).to.be.revertedWithCustomError(staking, "ContractIsPaused");
 
       await staking.pause(false);
     });
     it("should not allow claim if tampered", async () => {
-      let time = new Date().getTime();
+      let _time = new Date().getTime();
       const ONE_MONTH_IN_SECS = 30 * 24 * 60 * 60;
       const message = encodeAndHash(
         account1.address,
         500,
         true,
-        ONE_MONTH_IN_SECS,
-        time,
+        _time,
       );
       const signature = await owner.signMessage(ethers.toBeArray(message));
+      await time.increase(30 * 24 * 60 * 60);
       await expect(
         staking
           .connect(account1)
-          .claimRewards(501, true, ONE_MONTH_IN_SECS, signature, time),
+          .claimRewards(501, true, signature, _time),
       ).to.be.revertedWithCustomError(staking, "WrongHash");
     });
 
     it("should not allow claim if claim % is wrong", async () => {
-      let time = new Date().getTime();
+      let _time = new Date().getTime();
       const ONE_MONTH_IN_SECS = 30 * 24 * 60 * 60;
       const message = encodeAndHash(
         account1.address,
         500,
         true,
-        ONE_MONTH_IN_SECS,
-        time,
+        _time,
       );
       const signature = await owner.signMessage(ethers.toBeArray(message));
+      await time.increase(30 * 24 * 60 * 60);
       await expect(
         staking
           .connect(account1)
-          .claimRewards(10001, true, ONE_MONTH_IN_SECS, signature, time),
+          .claimRewards(10001, true, signature, _time),
       ).to.be.reverted;
     });
     it("should allow claim with restake", async () => {
-      let time = new Date().getTime();
+      let _time = new Date().getTime();
       const ONE_MONTH_IN_SECS = 30 * 24 * 60 * 60;
       const message = encodeAndHash(
         account1.address,
         500,
         true,
-        ONE_MONTH_IN_SECS,
-        time,
+        _time,
       );
       const signature = await owner.signMessage(ethers.toBeArray(message));
+      await time.increase(30 * 24 * 60 * 60);
       await expect(
         staking
           .connect(account1)
-          .claimRewards(500, true, ONE_MONTH_IN_SECS, signature, time),
+          .claimRewards(500, true, signature, _time),
       ).to.emit(staking, "LogClaimRewards");
       expect(await staking.getStakesLength(account1.address)).to.be.equal(2);
     });
 
     it("should allow claim with out restake", async () => {
-      let time = new Date().getTime();
+      let _time = new Date().getTime();
       const ONE_MONTH_IN_SECS = 30 * 24 * 60 * 60;
       const message = encodeAndHash(
         account1.address,
         500,
         false,
-        ONE_MONTH_IN_SECS,
-        time,
+        _time,
       );
       const signature = await owner.signMessage(ethers.toBeArray(message));
+      await time.increase(30 * 24 * 60 * 60);
       await expect(
         staking
           .connect(account1)
-          .claimRewards(500, false, ONE_MONTH_IN_SECS, signature, time),
+          .claimRewards(500, false, signature, _time),
       ).to.emit(staking, "LogClaimRewards");
       expect(await staking.getStakesLength(account1.address)).to.be.equal(2);
     });
 
     it("should revert because of signature replay protection on claim", async () => {
-      let time = new Date().getTime();
+      let _time = new Date().getTime();
       const ONE_MONTH_IN_SECS = 30 * 24 * 60 * 60;
       const message = encodeAndHash(
         account1.address,
         500,
         true,
-        ONE_MONTH_IN_SECS,
-        time,
+        _time,
       );
       const signature = await owner.signMessage(ethers.toBeArray(message));
+      await time.increase(30 * 24 * 60 * 60);
       await expect(
         staking
           .connect(account1)
-          .claimRewards(500, true, ONE_MONTH_IN_SECS, signature, time),
+          .claimRewards(500, true, signature, _time),
       ).to.emit(staking, "LogClaimRewards");
       expect(await staking.getStakesLength(account1.address)).to.be.equal(3);
+
+      await time.increase(30 * 24 * 60 * 60);
       await expect(
         staking
           .connect(account1)
-          .claimRewards(500, true, ONE_MONTH_IN_SECS, signature, time),
+          .claimRewards(500, true, signature, _time),
       ).to.be.reverted;
     });
 
@@ -421,8 +423,23 @@ describe("Pika Staking", function () {
     it("should set verifier Address", async () => {
       await staking.setVerifierAddress(verifierAddress.address);
     });
+    it("should revert if try to set zero address", async () => {
+      await expect(staking.setVerifierAddress(ZeroAddress)).to.be.revertedWithCustomError(staking,"ZeroAddress");
+    })
     it("should revert if non owner for verifier Address", async () => {
       await expect(staking.connect(account1).setVerifierAddress(verifierAddress.address)).to.be.reverted;
+    });
+    it("should test getPaginatedStake", async () => {
+      staking.connect(account1).getPaginatedStake(
+        account1.address,
+         0,
+         10
+      );
+      staking.connect(account1).getPaginatedStake(
+        account1.address,
+         6,
+         16
+      );
     });
   });
 });

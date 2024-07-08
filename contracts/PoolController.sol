@@ -22,6 +22,8 @@ contract PoolController is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     /// @dev Keeps track of registered pool addresses, maps pool address -> exists flag.
     mapping(address => bool) public poolExists;
+    // @dev pool token to pool address
+    mapping(address => address) public pools;
 
     /**
      * @dev Fired in `changePoolWeight()`.
@@ -68,9 +70,22 @@ contract PoolController is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         if (poolExists[_poolAddress]) {
             revert CommonErrors.AlreadyRegistered();
         }
+
+        address poolToken= ICorePool(_poolAddress).poolToken();
+        
+        pools[poolToken] = _poolAddress;
         poolExists[_poolAddress] = true;
+
         emit LogRegisterPool(_poolAddress);
     }
+
+    // @dev add pool token to pool address
+     function addPool() external onlyOwner {
+        pools[0xD1e64bcc904Cfdc19d0FABA155a9EdC69b4bcdAe] = 0xF965671DeC4C8f902083e8E0845cf86aac44FD80; // pika staking
+        pools[0x43a68A9f1F234e639B142F0ABa946B7Add26418d] = 0xFCf12ADF9Dc9967701596A12D1c7F5E447e34736; // lp staking
+    }
+
+   
     /// @notice Updates the rate of PIKA distribution per second
     /// @dev Only callable by the owner; emits LogUpdatePikaPerSecond on success
     /// @param _pikaPerSecond The new rate of PIKA distribution per second
@@ -114,6 +129,14 @@ contract PoolController is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         emit LogChangePoolWeight(msg.sender, address(pool), weight);
     }
 
+
+    /**
+     * @dev Overrides `Ownable.renounceOwnership()`, to avoid accidentally
+     *      renouncing ownership of the PoolControllers contract.
+     */
+    function renounceOwnership() public virtual override {}
+
+
     /**
      * @dev Function that should revert when `msg.sender` is not authorized to upgrade the contract. Called by
      * {upgradeToAndCall}.
@@ -121,4 +144,12 @@ contract PoolController is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     function _authorizeUpgrade(
         address newImplementation
     ) internal override onlyOwner {}
+
+
+     /**
+     * @dev Empty reserved space in storage. The size of the __gap array is calculated so that
+     *      the amount of storage used by a contract always adds up to the 50.
+     *      See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
+     */
+    uint256[44] private __gap;
 }

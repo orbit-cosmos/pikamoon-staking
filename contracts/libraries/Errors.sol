@@ -16,4 +16,6 @@ library CommonErrors {
     error WrongHash();
     error AlreadyUnstaked();
     error UnAuthorized();
+    error CoolOffPeriodIsNotOver();
+    error InvalidOperation();
 }

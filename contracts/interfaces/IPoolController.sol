@@ -15,4 +15,7 @@ interface IPoolController {
     ) external;
 
     function changePoolWeight(address pool, uint32 weight) external;
+    function pools(address _poolToken) external view returns (address);
+
+    function poolExists(address _poolAddress) external view returns (bool);
 }
