@@ -80,8 +80,9 @@ contract PoolController is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     // @dev add pool token to pool address
-     function addPool(address _poolAddress,address _poolToken) external onlyOwner {
-        pools[_poolToken] = _poolAddress;
+     function addPool() external onlyOwner {
+        pools[0xD1e64bcc904Cfdc19d0FABA155a9EdC69b4bcdAe] = 0xF965671DeC4C8f902083e8E0845cf86aac44FD80; // pika staking
+        pools[0x43a68A9f1F234e639B142F0ABa946B7Add26418d] = 0xFCf12ADF9Dc9967701596A12D1c7F5E447e34736; // lp staking
     }
 
    
@@ -150,5 +151,5 @@ contract PoolController is Initializable, UUPSUpgradeable, OwnableUpgradeable {
      *      the amount of storage used by a contract always adds up to the 50.
      *      See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
-    uint256[45] private __gap;
+    uint256[44] private __gap;
 }
