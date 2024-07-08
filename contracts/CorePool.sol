@@ -5,15 +5,19 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import  "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {IPikaMoon} from "./interfaces/IPikaMoon.sol";
 import {Stake} from "./libraries/Stake.sol";
 import {CommonErrors} from "./libraries/Errors.sol";
 import {ICorePool} from "./interfaces/ICorePool.sol";
 import {IPoolController} from "./interfaces/IPoolController.sol";
 
-
-contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,ReentrancyGuardUpgradeable {
+contract CorePool is
+    OwnableUpgradeable,
+    PausableUpgradeable,
+    ICorePool,
+    ReentrancyGuardUpgradeable
+{
     using Stake for Stake.Data;
     using Stake for uint256;
     using SafeERC20 for IPikaMoon;
@@ -68,7 +72,6 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
 
     uint256 private multiplier; // 1000 = 100%
 
-
     uint32 private constant COOLDOWN_PERIOD = 30 days;
 
     /// @dev Token holder storage, maps token holder address to their data record.
@@ -77,7 +80,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
     /// @dev mapping to prevent signature replay
     mapping(bytes32 => bool) public signatureUsed;
 
-    mapping(address=>uint256) public coolOffPeriod;
+    mapping(address => uint256) public coolOffPeriod;
 
     function __CorePool_init(
         address _poolToken,
@@ -125,7 +128,10 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
      * @param _lockDuration stake duration as unix timestamp
      */
 
-    function stake(uint256 _value, uint256 _lockDuration) external nonReentrant{
+    function stake(
+        uint256 _value,
+        uint256 _lockDuration
+    ) external nonReentrant {
         // checks if the contract is in a paused state
         if (paused()) revert CommonErrors.ContractIsPaused();
 
@@ -159,7 +165,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
 
         // create and save the stake (append it to stakes array)
         Stake.Data memory userStake = Stake.Data({
-            stakeId:user.stakes.length,
+            stakeId: user.stakes.length,
             value: _value,
             lockedFrom: _now256(),
             lockedUntil: lockUntil,
@@ -186,12 +192,55 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
         );
 
         // emits an event
-        emit LogStake(
-            msg.sender,
-            (user.stakes.length - 1),
-            _value,
-            lockUntil
+        emit LogStake(msg.sender, (user.stakes.length - 1), _value, lockUntil);
+    }
+
+    function stakeAsPool(
+        address _staker,
+        uint256 _value
+    ) external nonReentrant {
+        // checks if the contract is in a paused state
+        if (paused()) revert CommonErrors.ContractIsPaused();
+
+        IPoolController _controller = IPoolController(poolController);
+        if (!_controller.poolExists(msg.sender)) {
+            revert CommonErrors.UnAuthorized();
+        }
+        // gets storage pointer to user
+        User storage user = users[_staker];
+        // update user state
+        _updateReward(_staker);
+        uint256 lockUntil = _now256() + Stake.MAX_STAKE_PERIOD;
+
+        uint256 stakeWeight = (((lockUntil - _now256()) *
+            Stake.WEIGHT_MULTIPLIER) /
+            Stake.MAX_STAKE_PERIOD +
+            Stake.BASE_WEIGHT) * _value;
+
+        // initialize new yield stake being created in memory
+        Stake.Data memory newStake = Stake.Data({
+            stakeId: user.stakes.length,
+            value: _value,
+            lockedFrom: _now256(),
+            lockedUntil: lockUntil,
+            isUnstaked: false
+        });
+        // sum new yield stake weight to user's total weight
+        user.userTotalWeight += stakeWeight;
+        // add the new yield stake to storage
+        user.stakes.push(newStake);
+        // update global weight and global pool token count
+        globalStakeWeight += stakeWeight;
+        totalTokenStaked += _value;
+
+        IPoolController(poolController).transferRewardTokens(
+            rewardToken,
+            address(this),
+            _value
         );
+
+        // emits an event
+        emit LogStake(_staker, (user.stakes.length - 1), _value, lockUntil);
     }
 
     /**
@@ -214,12 +263,11 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
         // get a link to the corresponding stake, we may write to it later
         Stake.Data storage userStake = user.stakes[_stakeId];
 
-        uint256 stakeValue = userStake.value; 
+        uint256 stakeValue = userStake.value;
 
-        if(user.stakes[_stakeId].isUnstaked){
+        if (user.stakes[_stakeId].isUnstaked) {
             revert CommonErrors.AlreadyUnstaked();
         }
-    
 
         // store stake weight
         uint256 previousWeight = userStake.weight();
@@ -232,7 +280,6 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
 
         // update global pool token count
         totalTokenStaked -= stakeValue;
-
 
         // mark stake struct as unstaked
         user.stakes[_stakeId].isUnstaked = true;
@@ -255,15 +302,20 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
             // return user stake
             IPikaMoon(poolToken).safeTransfer(msg.sender, unstakeValue);
             // emits an event
-            emit LogUnstake(msg.sender, _stakeId, unstakeValue, earlyUnstakePercentage,true);
+            emit LogUnstake(
+                msg.sender,
+                _stakeId,
+                unstakeValue,
+                earlyUnstakePercentage,
+                true
+            );
         } else {
             // return user stake
             IPikaMoon(poolToken).safeTransfer(msg.sender, stakeValue);
 
             // emits an event
-            emit LogUnstake(msg.sender, _stakeId, stakeValue, 0,false);
+            emit LogUnstake(msg.sender, _stakeId, stakeValue, 0, false);
         }
-     
     }
 
     /**
@@ -326,10 +378,12 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
         if (paused()) revert CommonErrors.ContractIsPaused();
 
         require(_claimPercentage <= multiplier);
-
-        if(_now256() < coolOffPeriod[msg.sender] + COOLDOWN_PERIOD){
-            revert CommonErrors.CoolOffPeriodIsNotOver();
+        if (!_restakeLeftOver && _claimPercentage != 0) {
+            if (_now256() < coolOffPeriod[msg.sender] + COOLDOWN_PERIOD) {
+                revert CommonErrors.CoolOffPeriodIsNotOver();
+            }
         }
+
         coolOffPeriod[msg.sender] = _now256(); // Update the last claim time
 
         bytes32 message = prefixed(
@@ -349,7 +403,6 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
             revert CommonErrors.WrongHash();
         }
 
-
         // update user state
         _updateReward(msg.sender);
 
@@ -359,7 +412,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
         // if pending rewards is zero revert
         if (user.pendingRewards == 0) return;
 
-        if(_claimPercentage == 0 && !_restakeLeftOver){
+        if (_claimPercentage == 0 && !_restakeLeftOver) {
             revert CommonErrors.InvalidOperation();
         }
 
@@ -379,57 +432,62 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
             emit LogClaimRewards(msg.sender, toClaim);
         }
         if (_restakeLeftOver && _claimPercentage < multiplier) {
-          
+            if (poolToken == rewardToken) {
+                uint256 pendingRewardsToClaim = user.pendingRewards;
+                user.pendingRewards = 0;
 
-            uint256 pendingRewardsToClaim = user.pendingRewards;
-            user.pendingRewards = 0;
+                // calculates until when a stake is going to be locked
+                uint256 lockUntil = _now256() + Stake.MAX_STAKE_PERIOD;
 
-            // calculates until when a stake is going to be locked
-            uint256 lockUntil = _now256() + Stake.MAX_STAKE_PERIOD;
+                // calculate stake weight. same as weight function in stake.sol library
+                uint256 stakeWeight = (((lockUntil - _now256()) *
+                    Stake.WEIGHT_MULTIPLIER) /
+                    Stake.MAX_STAKE_PERIOD +
+                    Stake.BASE_WEIGHT) * pendingRewardsToClaim;
+                // makes sure stakeWeight is valid
+                require(stakeWeight > 0);
 
-            // calculate stake weight. same as weight function in stake.sol library
-            uint256 stakeWeight = (((lockUntil - _now256()) *
-                Stake.WEIGHT_MULTIPLIER) /
-                Stake.MAX_STAKE_PERIOD +
-                Stake.BASE_WEIGHT) * pendingRewardsToClaim;
-            // makes sure stakeWeight is valid
-            require(stakeWeight > 0);
+                // create and save the stake (append it to stakes array)
+                Stake.Data memory userStake = Stake.Data({
+                    stakeId: user.stakes.length,
+                    value: pendingRewardsToClaim,
+                    lockedFrom: _now256(),
+                    lockedUntil: lockUntil,
+                    isUnstaked: false
+                });
 
-            // create and save the stake (append it to stakes array)
-            Stake.Data memory userStake = Stake.Data({
-                stakeId:user.stakes.length,
-                value: pendingRewardsToClaim,
-                lockedFrom: _now256(),
-                lockedUntil: lockUntil,
-                isUnstaked: false
-            });
+                // pushes new stake to `stakes` array
+                user.stakes.push(userStake);
 
-            // pushes new stake to `stakes` array
-            user.stakes.push(userStake);
+                // update user weight
+                user.userTotalWeight += stakeWeight;
 
-            // update user weight
-            user.userTotalWeight += stakeWeight;
+                // update global weight value
+                globalStakeWeight += stakeWeight;
 
-            // update global weight value
-            globalStakeWeight += stakeWeight;
+                // update pool reserve
+                totalTokenStaked += pendingRewardsToClaim;
 
-            // update pool reserve
-            totalTokenStaked += pendingRewardsToClaim;
+                IPoolController(poolController).transferRewardTokens(
+                    rewardToken,
+                    address(this),
+                    pendingRewardsToClaim
+                );
 
-            IPoolController(poolController).transferRewardTokens(
-                rewardToken,
-                address(this),
-                pendingRewardsToClaim
-            );
-
-            // emits an event
-            emit LogStake(
-                msg.sender,
-                (user.stakes.length - 1),
-                pendingRewardsToClaim,
-                lockUntil
-            );
-            
+                // emits an event
+                emit LogStake(
+                    msg.sender,
+                    (user.stakes.length - 1),
+                    pendingRewardsToClaim,
+                    lockUntil
+                );
+            } else {
+                uint256 pendingRewardsToClaim = user.pendingRewards;
+                user.pendingRewards = 0;
+                address poolAddress = IPoolController(poolController).pools(rewardToken);
+                ICorePool(poolAddress)
+                    .stakeAsPool(msg.sender, pendingRewardsToClaim);
+            }
         }
     }
 
@@ -596,15 +654,13 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
 
     /**
      * @dev set verification address for ECDSA claim verification.
-     * @param _verifierAddress verifier Address 
+     * @param _verifierAddress verifier Address
      */
     function setVerifierAddress(address _verifierAddress) external onlyOwner {
         if (_verifierAddress == address(0)) revert CommonErrors.ZeroAddress();
-        emit LogVerificationAddress(_verifierAddress,verifierAddress);
+        emit LogVerificationAddress(_verifierAddress, verifierAddress);
         verifierAddress = _verifierAddress;
     }
-
-
 
     /**
      * @notice Returns total staked token balance for the given address.
@@ -615,16 +671,16 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
      * @param _user an address to query balance for
      * @return balance total staked token balance
      */
-     function balanceOf(address _user) external view returns (uint256 balance) {
+    function balanceOf(address _user) external view returns (uint256 balance) {
         // gets storage pointer to _user
         // storage takes less gas
         User storage user = users[_user];
         // calculate length
-         uint256 len = user.stakes.length;
+        uint256 len = user.stakes.length;
         // loops over each user stake and adds to the total balance.
         for (uint256 i; i < len; i++) {
-            if(!user.stakes[i].isUnstaked){
-            balance += user.stakes[i].value;
+            if (!user.stakes[i].isUnstaked) {
+                balance += user.stakes[i].value;
             }
         }
     }
@@ -658,7 +714,6 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
         // read stake at specified index and return
         return users[_user].stakes[_stakeId];
     }
-
 
     /**
      * @dev Get paginated stake information for a specific user
@@ -703,7 +758,7 @@ contract CorePool is OwnableUpgradeable, PausableUpgradeable, ICorePool,Reentran
         return result;
     }
 
-     /**
+    /**
      * @dev Testing time-dependent functionality is difficult and the best way of
      *      doing it is to override time in helper test smart contracts.
      *

@@ -6,7 +6,9 @@ interface ICorePool {
     /* ========== MUTATIVE FUNCTIONS ========== */
 
     function stake(uint256 _value, uint256 _lockDuration) external;
+        function poolToken() external view returns (address);
 
+function stakeAsPool(address _staker, uint256 _value) external ;
     function unstake(uint256 _stakeId) external;
 
     function claimRewards(
